@@ -6,6 +6,7 @@ using Microsoft.Practices.EnterpriseLibrary.Data;
 using System;
 using System.Data;
 using System.Data.SqlClient;
+using System.Xml;
 
 namespace KwalityIntegrationLibrary.Classes
 {
@@ -34,20 +35,43 @@ namespace KwalityIntegrationLibrary.Classes
             return f;
 
         }
+        public string getDBServer_Details(string tagname)
+        {
+            XmlDocument xmlDoc = new XmlDocument();
+            string strFileName = "";
+            string PrgmFilesPath = AppDomain.CurrentDomain.BaseDirectory;
+
+            strFileName = PrgmFilesPath + "\\bin\\XMLFiles\\DBConfig.xml";
+            //strFileName = PrgmFilesPath + "XMLFiles\\DBConfig.xml";
+            _log.EventLog("getDBServer_Details  strFileName = " + strFileName );
+            xmlDoc.Load(strFileName);
+            XmlNodeList nodeList = xmlDoc.DocumentElement.SelectNodes("/DatabaseConfig/Database/" + tagname + "");
+            string strValue;
+            XmlNode node = nodeList[0];
+            if (node != null)
+                strValue = node.InnerText;
+            else
+                strValue = "";
+            _log.EventLog("getDBServer_Details  tagname = " + tagname + "strValue = " + strValue );
+            return strValue;
+        }
         public string SQL_Details(int CompId)
         {
             string strReturn = "";
             try
             {
-                string[] dbDetails = Focus.DatabaseFactory.DatabaseWrapper.GetDatabaseDetails();
-                _log.EventLog("GetDatabaseDetails " + dbDetails[0] + dbDetails[1] + dbDetails[2]);
+                //string[] dbDetails = Focus.DatabaseFactory.DatabaseWrapper.GetDatabaseDetails();
+                string pwd = getDBServer_Details("Password");
+                string User_ID = getDBServer_Details("User_Id");
+                string Data_Source = getDBServer_Details("Data_Source");
+                _log.EventLog("GetDatabaseDetails " + Data_Source + User_ID + pwd);
                 string CompCode = DatabaseWrapper.GetCompanyCode(CompId);
                 _log.EventLog("CompCode " + CompCode);
-                string ESerName = dbDetails[0].ToString();
+                string ESerName = Data_Source;
                 string EDBName = "Focus8"+ CompCode;
-                string EUID = dbDetails[1].ToString();
-                string EPWD = dbDetails[2].ToString();
-                strReturn = $"data source={ESerName};initial catalog={EDBName};User ID={EUID};Password={EPWD};integrated security=True;MultipleActiveResultSets=True";
+                string EUID = User_ID;
+                string EPWD = pwd;
+                strReturn = $"Server={ESerName};Database={EDBName};User Id={EUID};Password={EPWD};";
                 return strReturn;
             }
             catch (Exception e)
@@ -130,6 +154,43 @@ namespace KwalityIntegrationLibrary.Classes
                 error = ex.Message;
             }
             return ds;
+        }
+        public DataTable GetIRef(string RefNo,int cid)
+        {
+            try
+            {
+                DataSet ds = new DataSet();
+
+                string str = $@"EXEC Proc_LN_Vnd_Blk_Pnd '{RefNo}'";
+                ds = GetData(str,cid,ref error);
+
+                if (ds.Tables[0] != null)
+                {
+                    if (ds.Tables[0].Rows.Count != 0)
+                    {
+                        return ds.Tables[0];
+                    }
+                    else
+                    {
+                        return null;
+                    }
+                }
+                else
+                {
+                    return null;
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.ErrLog(ex.ToString());
+                return null;
+            }
+        }
+        public static int GetDateToInt(DateTime dt)
+        {
+            int val;
+            val = Convert.ToInt16(dt.Year) * 65536 + Convert.ToInt16(dt.Month) * 256 + Convert.ToInt16(dt.Day);
+            return val;
         }
     }
 }

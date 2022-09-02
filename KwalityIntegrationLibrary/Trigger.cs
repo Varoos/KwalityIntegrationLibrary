@@ -1,25 +1,16 @@
-﻿using Focus.Transactions.DataStructs;
-using Focus.TranSettings.DataStructs;
-using Focus.Common.DataStructs;
+﻿using KwalityIntegrationLibrary.Classes;
+using KwalityIntegrationLibrary.Models;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Data;
 using System.IO;
-using System.Net;
-using System.Text;
-using System.Windows.Forms;
-using Focus.Masters.DataStructs;
-using Focus.Conn;
-using System.Diagnostics;
-using System.Collections;
-using KwalityIntegrationLibrary.Classes;
-using System.Xml.Serialization;
-using System.Collections.Generic;
-using Newtonsoft.Json;
-using System.Xml;
-using KwalityIntegrationLibrary.Models;
-using Newtonsoft.Json.Linq;
-using static KwalityIntegrationLibrary.Models.APIResponse;
 using System.Linq;
+using System.Net;
+using System.Xml;
+using static KwalityIntegrationLibrary.Models.APIResponse;
 
 namespace KwalityIntegrationLibrary
 {
@@ -30,11 +21,11 @@ namespace KwalityIntegrationLibrary
         public static int CompanyId;
         public static string sessionID;
         public static string baseUrl;
+        string error = "";
         public bool Integration_Trigger(string ScreenNames, int CompId)
         {
             _log.EventLog("Entered  Integration_Trigger");
             bool rtnFlag = true;
-            bool PostedFlag = true;
             try
             {
                 CompanyId = CompId;
@@ -66,9 +57,12 @@ namespace KwalityIntegrationLibrary
                         }
                         else if (s == "Sales Invoice - VAN")
                         {
-                            SalesInvoice_PIC();
-                            SalesInvoice_KIF();
-                            SalesInvoice_TB();
+                            DataSet dsPIC = _db.getFn("getSalesInvoicePIC", CompanyId);
+                            SalesInvoice_PIC(dsPIC);
+                            DataSet dsKIF = _db.getFn("getSalesInvoiceKIF", CompanyId);
+                            SalesInvoice_KIF(dsKIF);
+                            DataSet dsTB = _db.getFn("getSalesInvoiceTB", CompanyId);
+                            SalesInvoice_TB(dsTB);
                         }
                         else if (s == "Sales Return - VAN")
                         {
@@ -134,9 +128,14 @@ namespace KwalityIntegrationLibrary
                                      };
                         _log.EventLog("StkTransferPIC header Data ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsPIC.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        _log.EventLog("StkTransferPIC item rows count" + rows.Count().ToString());
-                        foreach (DataRow item in rows)
+                        DataSet dsBody = _db.getFn("getStkTransferPIC_Body,@p1=" + docno, CompanyId);
+                        _log.EventLog("StkTransferPIC item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if (dsBody.Tables[0].Rows.Count == 0)
+                        {
+                            _log.EventLog("No Body");
+                            continue;
+                        }
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
                         {
                             Hashtable objBody = new Hashtable
                                      {
@@ -158,6 +157,7 @@ namespace KwalityIntegrationLibrary
 
                         string Url1 = baseUrl + "/Transactions/Vouchers/Stock Transfer Issue - VAN";
                         _log.EventLog("StkTransferPIC url " + Url1);
+                        sessionID = GetSessionId(CompanyId);
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
@@ -224,9 +224,14 @@ namespace KwalityIntegrationLibrary
                                      };
                         _log.EventLog("StkTransferKIF Header Data ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsKIF.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        _log.EventLog("StkTransferKIF rows count " + rows.Count().ToString());
-                        foreach (DataRow item in rows)
+                        DataSet dsBody = _db.getFn("getStkTransferKIF_Body,@p1=" + docno, CompanyId);
+                        _log.EventLog("StkTransferKIF item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if (dsBody.Tables[0].Rows.Count == 0)
+                        {
+                            _log.EventLog("No Body");
+                            continue;
+                        }
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
                         {
                             Hashtable objBody = new Hashtable
                                      {
@@ -248,6 +253,7 @@ namespace KwalityIntegrationLibrary
 
                         string Url1 = baseUrl + "/Transactions/Vouchers/Stock Transfer Issue - VAN";
                         _log.EventLog("StkTransferKIF url  " + Url1);
+                        sessionID = GetSessionId(CompanyId);
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
@@ -314,9 +320,14 @@ namespace KwalityIntegrationLibrary
                                      };
                         _log.EventLog("StkTransferTB Header Data ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsTB.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        _log.EventLog("StkTransferTB rows count " + rows.Count().ToString());
-                        foreach (DataRow item in rows)
+                        DataSet dsBody = _db.getFn("getStkTransferTB_Body,@p1=" + docno, CompanyId);
+                        _log.EventLog("StkTransferTB item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if (dsBody.Tables[0].Rows.Count == 0)
+                        {
+                            _log.EventLog("No Body");
+                            continue;
+                        }
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
                         {
                             Hashtable objBody = new Hashtable
                                      {
@@ -338,6 +349,7 @@ namespace KwalityIntegrationLibrary
 
                         string Url1 = baseUrl + "/Transactions/Vouchers/Stock Transfer Issue - VAN";
                         _log.EventLog("StkTransferTB url " + Url1);
+                        sessionID = GetSessionId(CompanyId);
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
@@ -397,16 +409,21 @@ namespace KwalityIntegrationLibrary
                                      {
                                          { "DocNo", Pic["DocumentNo"].ToString().Trim() },
                                          { "Date", Convert.ToInt32(idate)},
-                                         { "Warehouse__Code", Warehouse},
-                                         { "Warehouse From__Code", Warehouse },
-                                         { "Warehouse To__Code", Salesman },
+                                         { "Warehouse__Code", Salesman},
+                                         { "Warehouse From__Code", Salesman },
+                                         { "Warehouse To__Code",  Warehouse},
                                          { "Company Master__Id", 3 }
                                      };
                         _log.EventLog("StkTransferRetPIC Header Data Ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsPIC.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        _log.EventLog("StkTransferRetPIC rows count " + rows.Count().ToString());
-                        foreach (DataRow item in rows)
+                        DataSet dsBody = _db.getFn("getStkTransferRetPIC_Body,@p1=" + docno, CompanyId);
+                        _log.EventLog("StkTransferRetPIC item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if (dsBody.Tables[0].Rows.Count == 0)
+                        {
+                            _log.EventLog("No Body");
+                            continue;
+                        }
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
                         {
                             Hashtable objBody = new Hashtable
                                      {
@@ -428,6 +445,7 @@ namespace KwalityIntegrationLibrary
 
                         string Url1 = baseUrl + "/Transactions/Vouchers/Stock Transfer Return - VAN";
                         _log.EventLog("StkTransferRetPIC url " + Url1);
+                        sessionID = GetSessionId(CompanyId);
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
@@ -487,16 +505,21 @@ namespace KwalityIntegrationLibrary
                                      {
                                          { "DocNo", Pic["DocumentNo"].ToString().Trim() },
                                          { "Date", Convert.ToInt32(idate)},
-                                         { "Warehouse__Code", Warehouse},
-                                         { "Warehouse From__Code", Warehouse },
-                                         { "Warehouse To__Code", Salesman },
+                                         { "Warehouse__Code", Salesman},
+                                         { "Warehouse From__Code", Salesman },
+                                         { "Warehouse To__Code", Warehouse },
                                          { "Company Master__Id", 4 }
                                      };
                         _log.EventLog("StkTransferRetKIF Header Data Ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsKIF.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        _log.EventLog("StkTransferRetKIF rows count" + rows.Count().ToString());
-                        foreach (DataRow item in rows)
+                        DataSet dsBody = _db.getFn("getStkTransferRetKIF_Body,@p1=" + docno, CompanyId);
+                        _log.EventLog("StkTransferRetKIF item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if (dsBody.Tables[0].Rows.Count == 0)
+                        {
+                            _log.EventLog("No Body");
+                            continue;
+                        }
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
                         {
                             Hashtable objBody = new Hashtable
                                      {
@@ -518,6 +541,7 @@ namespace KwalityIntegrationLibrary
 
                         string Url1 = baseUrl + "/Transactions/Vouchers/Stock Transfer Return - VAN";
                         _log.EventLog("StkTransferRetKIF url " + Url1);
+                        sessionID = GetSessionId(CompanyId);
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
@@ -577,16 +601,21 @@ namespace KwalityIntegrationLibrary
                                      {
                                          { "DocNo", Pic["DocumentNo"].ToString().Trim() },
                                          { "Date", Convert.ToInt32(idate)},
-                                         { "Warehouse__Code", Warehouse},
-                                         { "Warehouse From__Code", Warehouse },
-                                         { "Warehouse To__Code", Salesman },
+                                         { "Warehouse__Code", Salesman},
+                                         { "Warehouse From__Code", Salesman },
+                                         { "Warehouse To__Code", Warehouse },
                                          { "Company Master__Id",5}
                                      };
                         _log.EventLog("StkTransferRetTB Header Data ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsTB.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        _log.EventLog("StkTransferRetTB rows count " + rows.Count().ToString());
-                        foreach (DataRow item in rows)
+                        DataSet dsBody = _db.getFn("getStkTransferRetTB_Body,@p1=" + docno, CompanyId);
+                        _log.EventLog("StkTransferRetTB item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if (dsBody.Tables[0].Rows.Count == 0)
+                        {
+                            _log.EventLog("No Body");
+                            continue;
+                        }
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
                         {
                             Hashtable objBody = new Hashtable
                                      {
@@ -608,6 +637,7 @@ namespace KwalityIntegrationLibrary
 
                         string Url1 = baseUrl + "/Transactions/Vouchers/Stock Transfer Return - VAN";
                         _log.EventLog("StkTransferRetTB url " + Url1);
+                        sessionID = GetSessionId(CompanyId);
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
@@ -647,31 +677,33 @@ namespace KwalityIntegrationLibrary
             }
         }
 
-        private void SalesInvoice_PIC()
+        bool InvFlag = true;
+        private void SalesInvoice_PIC(DataSet dsPIC)
         {
-            DataSet dsPIC = _db.getFn("getSalesInvoicePIC", CompanyId);
-            if (dsPIC != null)
+            try
             {
-                if (dsPIC.Tables.Count > 0)
+                if (dsPIC != null)
                 {
-                    _log.EventLog("getSalesInvoicePIC" + dsPIC.Tables.Count.ToString());
-                    string docno = "";
-                    foreach (DataRow Pic in dsPIC.Tables[0].Rows)
+                    if (dsPIC.Tables.Count > 0)
                     {
-                        docno = Pic["DocumentNo"].ToString().Trim();
-                        _log.EventLog("docno" + docno);
-                        string idate = Pic["intDate"].ToString().Trim();
-                        string SalesAccount = Pic["SalesAccount"].ToString().Trim();
-                        string CustomerAC = Pic["CustomerAC"].ToString().Trim();
-                        string DueDate = Pic["intDueDate"].ToString().Trim();
-                        string WarehouseCode = Pic["Salesman"].ToString().Trim();
-                        string RouteCode = Pic["Salesman"].ToString().Trim();
-                        string Narration = Pic["Narration"].ToString().Trim();
-                        string Grp = Pic["Grp"].ToString().Trim();
-                        string LPONO = Pic["PONo"].ToString().Trim();
-                        string Jurisdiction = Pic["Jurisdiction"].ToString().Trim();
-                        string PlaceOfSupply = Pic["PlaceOfSupply"].ToString().Trim();
-                        Hashtable header = new Hashtable
+                        _log.EventLog("getSalesInvoicePIC" + dsPIC.Tables.Count.ToString());
+                        string docno = "";
+                        foreach (DataRow Pic in dsPIC.Tables[0].Rows)
+                        {
+                            docno = Pic["DocumentNo"].ToString().Trim();
+                            _log.EventLog("docno" + docno);
+                            string idate = Pic["intDate"].ToString().Trim();
+                            string SalesAccount = Pic["SalesAccount"].ToString().Trim();
+                            string CustomerAC = Pic["CustomerAC"].ToString().Trim();
+                            string DueDate = Pic["intDueDate"].ToString().Trim();
+                            string WarehouseCode = Pic["Salesman"].ToString().Trim();
+                            string RouteCode = Pic["Salesman"].ToString().Trim();
+                            string Narration = Pic["Narration"].ToString().Trim();
+                            string Grp = Pic["Grp"].ToString().Trim();
+                            string LPONO = Pic["PONo"].ToString().Trim();
+                            string Jurisdiction = Pic["Jurisdiction"].ToString().Trim();
+                            string PlaceOfSupply = Pic["PlaceOfSupply"].ToString().Trim();
+                            Hashtable header = new Hashtable
                                      {
                                          { "DocNo", Pic["DocumentNo"].ToString().Trim() },
                                          { "Date", Convert.ToInt32(idate)},
@@ -687,13 +719,18 @@ namespace KwalityIntegrationLibrary
                                          { "Place of supply__Id", PlaceOfSupply},
                                          { "Jurisdiction__Id", Jurisdiction }
                                      };
-                        _log.EventLog("SalesInvoice_PIC header Data ready");
-                        List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsPIC.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        _log.EventLog("SalesInvoice_PIC item rows count" + rows.Count().ToString());
-                        foreach (DataRow item in rows)
-                        {
-                            Hashtable objBody = new Hashtable
+                            _log.EventLog("SalesInvoice_PIC header Data ready");
+                            List<Hashtable> lstBody = new List<Hashtable>();
+                            DataSet dsBody = _db.getFn("getSalesInvoicePIC_Body,@p1=" + docno, CompanyId);
+                            _log.EventLog("SalesInvoice_PIC item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                            if (dsBody.Tables[0].Rows.Count == 0)
+                            {
+                                _log.EventLog("No Body");
+                                continue;
+                            }
+                            foreach (DataRow item in dsBody.Tables[0].Rows)
+                            {
+                                Hashtable objBody = new Hashtable
                                      {
                                          { "DocNo", item["DocumentNo"].ToString().Trim() },
                                          { "Item__Code", item["ItemCode"].ToString().Trim()},
@@ -702,63 +739,73 @@ namespace KwalityIntegrationLibrary
                                          { "StockAC__Id", item["iStocksAccount"].ToString().Trim() },
                                          { "Quantity", Convert.ToDecimal(item["Qty"].ToString().Trim()) },
                                          { "Rate", Convert.ToDecimal(item["Rate"].ToString().Trim()) },
-                                         { "Input Discount Amt", Convert.ToDecimal(item["Discount2"].ToString().Trim()) },
+                                         { "Discount %", Convert.ToDecimal(item["Discount2"].ToString().Trim()) },
                                          { "TaxCode__Code", "SR" },
-                                         { "VAT", Convert.ToDecimal(item["VAT2"].ToString().Trim()) }
+                                         { "VAT", Convert.ToDecimal(item["VAT2"].ToString().Trim()) },
+                                         { "Vat Amount", Convert.ToDecimal(item["TotalVATAmount"].ToString().Trim()) }
                                      };
-                            lstBody.Add(objBody);
-                        }
-                        _log.EventLog("SalesInvoice_PIC Body Data ready");
-                        var postingData1 = new PostingData();
-                        postingData1.data.Add(new Hashtable { { "Header", header }, { "Body", lstBody } });
-                        string sContent1 = JsonConvert.SerializeObject(postingData1);
-                        _log.EventLog("SalesInvoice_PIC Content" + sContent1);
-                        string err1 = "";
-
-                        string Url1 = baseUrl + "/Transactions/Vouchers/Sales Invoice - VAN";
-                        _log.EventLog("SalesInvoice_PIC post url" + Url1);
-                        var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
-                        if (response1 != null)
-                        {
-                            _log.EventLog("SalesInvoice_PIC posting Response" + response1.ToString());
-                            var responseData1 = JsonConvert.DeserializeObject<APIResponse.PostResponse>(response1);
-                            if (responseData1.result == -1)
-                            {
-                                _log.EventLog(" SalesInvoice_PIC posting Response failed" + responseData1.result.ToString());
-                                _log.EventLog("SalesInvoice_PIC Sales Invoice - VAN Entry Posted Failed with DocNo: " + docno);
-                                _log.ErrLog(response1 + "\n " + " SalesInvoice_PIC Sales Invoice - VAN Entry Posted Failed with DocNo: " + docno + " \n Error Message : " + responseData1.message + "\n " + err1);
+                                lstBody.Add(objBody);
                             }
-                            else
+                            _log.EventLog("SalesInvoice_PIC Body Data ready");
+                            var postingData1 = new PostingData();
+                            postingData1.data.Add(new Hashtable { { "Header", header }, { "Body", lstBody } });
+                            string sContent1 = JsonConvert.SerializeObject(postingData1);
+                            _log.EventLog("SalesInvoice_PIC Content" + sContent1);
+                            string err1 = "";
+
+                            string Url1 = baseUrl + "/Transactions/Vouchers/Sales Invoice - VAN";
+                            _log.EventLog("SalesInvoice_PIC post url" + Url1);
+                            sessionID = GetSessionId(CompanyId);
+                            var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
+                            if (response1 != null)
                             {
-                                _log.EventLog(" SalesInvoice_PIC Sales Invoice - VAN Entry Posted Successfully with DocNo: " + docno);
-                                int d = _db.setFn("setSalesInvoicePIC", docno, CompanyId);
-                                if (d == 1)
+                                _log.EventLog("SalesInvoice_PIC posting Response" + response1.ToString());
+                                var responseData1 = JsonConvert.DeserializeObject<APIResponse.PostResponse>(response1);
+                                if (responseData1.result == -1)
                                 {
-                                    _log.EventLog(" SalesInvoice_PIC FOCUS_WINIT DB updation successed with DocNo = " + docno);
+                                    InvFlag = false;
+                                    _log.EventLog(" SalesInvoice_PIC posting Response failed" + responseData1.result.ToString());
+                                    _log.EventLog("SalesInvoice_PIC Sales Invoice - VAN Entry Posted Failed with DocNo: " + docno);
+                                    _log.ErrLog(response1 + "\n " + " SalesInvoice_PIC Sales Invoice - VAN Entry Posted Failed with DocNo: " + docno + " \n Error Message : " + responseData1.message + "\n " + err1);
                                 }
                                 else
                                 {
-                                    _log.EventLog(" SalesInvoice_PIC FOCUS_WINIT DB Updation failed with DocNo=" + docno);
+                                    _log.EventLog(" SalesInvoice_PIC Sales Invoice - VAN Entry Posted Successfully with DocNo: " + docno);
+                                    int d = _db.setFn("setSalesInvoicePIC", docno, CompanyId);
+                                    if (d != 0)
+                                    {
+                                        _log.EventLog(" SalesInvoice_PIC FOCUS_WINIT DB updation successed with DocNo = " + docno);
+                                    }
+                                    else
+                                    {
+                                        _log.EventLog(" SalesInvoice_PIC FOCUS_WINIT DB Updation failed with DocNo=" + docno);
+                                    }
                                 }
                             }
                         }
-                    }
 
+                    }
+                    else
+                    {
+                        InvFlag = false;
+                        _log.EventLog("getSalesInvoicePIC dataset table count is zero");
+                    }
                 }
                 else
                 {
-                    _log.EventLog("getSalesInvoicePIC dataset table count is zero");
+                    InvFlag = false;
+                    _log.EventLog("getSalesInvoicePIC dataset is null");
                 }
             }
-            else
+            catch (Exception ex)
             {
-                _log.EventLog("getSalesInvoicePIC dataset is null");
+                InvFlag = false;
+                _log.ErrLog(ex.Message+"\n"+ex.StackTrace + "\n"+ex.Source + "\n"+ex.InnerException);
             }
         }
 
-        private void SalesInvoice_KIF()
+        private void SalesInvoice_KIF(DataSet dsKIF)
         {
-            DataSet dsKIF = _db.getFn("getSalesInvoiceKIF", CompanyId);
             if (dsKIF != null)
             {
                 if (dsKIF.Tables.Count > 0)
@@ -787,7 +834,7 @@ namespace KwalityIntegrationLibrary
                                          { "SalesAC__Name", SalesAccount},
                                          { "CustomerAC__Code", CustomerAC },
                                          { "DueDate", Convert.ToInt32(DueDate) },
-                                         { "Company Master__Id", 3 },
+                                         { "Company Master__Id", 4 },
                                          { "Warehouse__Code", WarehouseCode },
                                          { "Route__Code", RouteCode },
                                          { "sNarration", Narration },
@@ -798,9 +845,14 @@ namespace KwalityIntegrationLibrary
                                      };
                         _log.EventLog("SalesInvoice_KIF header Data ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsKIF.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        _log.EventLog("SalesInvoice_KIF item rows count" + rows.Count().ToString());
-                        foreach (DataRow item in rows)
+                        DataSet dsBody = _db.getFn("getSalesInvoiceKIF_Body,@p1=" + docno, CompanyId);
+                        _log.EventLog("SalesInvoice_KIF item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if (dsBody.Tables[0].Rows.Count == 0)
+                        {
+                            _log.EventLog("No Body");
+                            continue;
+                        }
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
                         {
                             Hashtable objBody = new Hashtable
                                      {
@@ -811,9 +863,10 @@ namespace KwalityIntegrationLibrary
                                          { "StockAC__Id", item["iStocksAccount"].ToString().Trim() },
                                          { "Quantity", Convert.ToDecimal(item["Qty"].ToString().Trim()) },
                                          { "Rate", Convert.ToDecimal(item["Rate"].ToString().Trim()) },
-                                         { "Input Discount Amt", Convert.ToDecimal(item["Discount2"].ToString().Trim()) },
+                                         { "Discount %", Convert.ToDecimal(item["Discount2"].ToString().Trim()) },
                                          { "TaxCode__Code", "SR" },
-                                         { "VAT", Convert.ToDecimal(item["VAT2"].ToString().Trim()) }
+                                         { "VAT", Convert.ToDecimal(item["VAT2"].ToString().Trim()) },
+                                         { "Vat Amount", Convert.ToDecimal(item["TotalVATAmount"].ToString().Trim()) }
                                      };
                             lstBody.Add(objBody);
                         }
@@ -826,6 +879,7 @@ namespace KwalityIntegrationLibrary
 
                         string Url1 = baseUrl + "/Transactions/Vouchers/Sales Invoice - VAN";
                         _log.EventLog("SalesInvoice_KIF post url" + Url1);
+                        sessionID = GetSessionId(CompanyId);
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
@@ -865,9 +919,8 @@ namespace KwalityIntegrationLibrary
             }
         }
 
-        private void SalesInvoice_TB()
+        private void SalesInvoice_TB(DataSet dsTB)
         {
-            DataSet dsTB = _db.getFn("getSalesInvoiceTB", CompanyId);
             if (dsTB != null)
             {
                 if (dsTB.Tables.Count > 0)
@@ -896,7 +949,7 @@ namespace KwalityIntegrationLibrary
                                          { "SalesAC__Name", SalesAccount},
                                          { "CustomerAC__Code", CustomerAC },
                                          { "DueDate", Convert.ToInt32(DueDate) },
-                                         { "Company Master__Id", 3 },
+                                         { "Company Master__Id", 5 },
                                          { "Warehouse__Code", WarehouseCode },
                                          { "Route__Code", RouteCode },
                                          { "sNarration", Narration },
@@ -907,9 +960,14 @@ namespace KwalityIntegrationLibrary
                                      };
                         _log.EventLog("SalesInvoice_TB header Data ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsTB.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        _log.EventLog("SalesInvoice_TB item rows count" + rows.Count().ToString());
-                        foreach (DataRow item in rows)
+                        DataSet dsBody = _db.getFn("getSalesInvoiceTB_Body,@p1=" + docno, CompanyId);
+                        _log.EventLog("SalesInvoice_TB item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if (dsBody.Tables[0].Rows.Count == 0)
+                        {
+                            _log.EventLog("No Body");
+                            continue;
+                        }
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
                         {
                             Hashtable objBody = new Hashtable
                                      {
@@ -920,9 +978,10 @@ namespace KwalityIntegrationLibrary
                                          { "StockAC__Id", item["iStocksAccount"].ToString().Trim() },
                                          { "Quantity", Convert.ToDecimal(item["Qty"].ToString().Trim()) },
                                          { "Rate", Convert.ToDecimal(item["Rate"].ToString().Trim()) },
-                                         { "Input Discount Amt", Convert.ToDecimal(item["Discount2"].ToString().Trim()) },
+                                         { "Discount %", Convert.ToDecimal(item["Discount2"].ToString().Trim()) },
                                          { "TaxCode__Code", "SR" },
-                                         { "VAT", Convert.ToDecimal(item["VAT2"].ToString().Trim()) }
+                                         { "VAT", Convert.ToDecimal(item["VAT2"].ToString().Trim()) },
+                                         { "Vat Amount", Convert.ToDecimal(item["TotalVATAmount"].ToString().Trim()) }
                                      };
                             lstBody.Add(objBody);
                         }
@@ -935,6 +994,7 @@ namespace KwalityIntegrationLibrary
 
                         string Url1 = baseUrl + "/Transactions/Vouchers/Sales Invoice - VAN";
                         _log.EventLog("SalesInvoice_TB post url" + Url1);
+                        sessionID = GetSessionId(CompanyId);
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
@@ -1016,9 +1076,14 @@ namespace KwalityIntegrationLibrary
                                      };
                         _log.EventLog("SalesReturn_PIC header Data ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsPIC.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        _log.EventLog("SalesReturn_PIC item rows count" + rows.Count().ToString());
-                        foreach (DataRow item in rows)
+                        DataSet dsBody = _db.getFn("getSalesReturnPIC_Body,@p1=" + docno, CompanyId);
+                        _log.EventLog("SalesReturn_PIC item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if (dsBody.Tables[0].Rows.Count == 0)
+                        {
+                            _log.EventLog("No Body");
+                            continue;
+                        }
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
                         {
                             Hashtable objBody = new Hashtable
                                      {
@@ -1029,9 +1094,10 @@ namespace KwalityIntegrationLibrary
                                          { "StockAC__Id", item["iStocksAccount"].ToString().Trim() },
                                          { "Quantity", Convert.ToDecimal(item["Qty"].ToString().Trim()) },
                                          { "Rate", Convert.ToDecimal(item["Rate"].ToString().Trim()) },
-                                         { "Input Discount Amt", Convert.ToDecimal(item["Discount2"].ToString().Trim()) },
+                                         { "Discount %", Convert.ToDecimal(item["Discount2"].ToString().Trim()) },
                                          { "TaxCode__Code", "SR" },
-                                         { "VAT", Convert.ToDecimal(item["VAT2"].ToString().Trim()) }
+                                         { "VAT", Convert.ToDecimal(item["VAT2"].ToString().Trim()) },
+                                         { "Vat Amount", Convert.ToDecimal(item["TotalVATAmount"].ToString().Trim()) }
                                      };
                             lstBody.Add(objBody);
                         }
@@ -1044,6 +1110,7 @@ namespace KwalityIntegrationLibrary
 
                         string Url1 = baseUrl + "/Transactions/Vouchers/Sales Return - VAN";
                         _log.EventLog("SalesReturn_PIC post url" + Url1);
+                        sessionID = GetSessionId(CompanyId);
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
@@ -1114,7 +1181,7 @@ namespace KwalityIntegrationLibrary
                                          { "SalesAC__Name", SalesAccount},
                                          { "CustomerAC__Code", CustomerAC },
                                          //{ "DueDate", Convert.ToInt32(DueDate) },
-                                         { "Company Master__Id", 3 },
+                                         { "Company Master__Id", 4 },
                                          { "Warehouse__Code", WarehouseCode },
                                          { "Route__Code", RouteCode },
                                          { "sNarration", Narration },
@@ -1125,9 +1192,14 @@ namespace KwalityIntegrationLibrary
                                      };
                         _log.EventLog("SalesReturn_KIF header Data ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsKIF.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        _log.EventLog("SalesReturn_KIF item rows count" + rows.Count().ToString());
-                        foreach (DataRow item in rows)
+                        DataSet dsBody = _db.getFn("getSalesReturnKIF_Body,@p1=" + docno, CompanyId);
+                        _log.EventLog("SalesReturn_KIF item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if (dsBody.Tables[0].Rows.Count == 0)
+                        {
+                            _log.EventLog("No Body");
+                            continue;
+                        }
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
                         {
                             Hashtable objBody = new Hashtable
                                      {
@@ -1138,9 +1210,10 @@ namespace KwalityIntegrationLibrary
                                          { "StockAC__Id", item["iStocksAccount"].ToString().Trim() },
                                          { "Quantity", Convert.ToDecimal(item["Qty"].ToString().Trim()) },
                                          { "Rate", Convert.ToDecimal(item["Rate"].ToString().Trim()) },
-                                         { "Input Discount Amt", Convert.ToDecimal(item["Discount2"].ToString().Trim()) },
+                                         { "Discount %", Convert.ToDecimal(item["Discount2"].ToString().Trim()) },
                                          { "TaxCode__Code", "SR" },
-                                         { "VAT", Convert.ToDecimal(item["VAT2"].ToString().Trim()) }
+                                         { "VAT", Convert.ToDecimal(item["VAT2"].ToString().Trim()) },
+                                         { "Vat Amount", Convert.ToDecimal(item["TotalVATAmount"].ToString().Trim()) }
                                      };
                             lstBody.Add(objBody);
                         }
@@ -1153,6 +1226,7 @@ namespace KwalityIntegrationLibrary
 
                         string Url1 = baseUrl + "/Transactions/Vouchers/Sales Return - VAN";
                         _log.EventLog("SalesReturn_KIF post url" + Url1);
+                        sessionID = GetSessionId(CompanyId);
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
@@ -1223,7 +1297,7 @@ namespace KwalityIntegrationLibrary
                                          { "SalesAC__Name", SalesAccount},
                                          { "CustomerAC__Code", CustomerAC },
                                          //{ "DueDate", Convert.ToInt32(DueDate) },
-                                         { "Company Master__Id", 3 },
+                                         { "Company Master__Id", 5 },
                                          { "Warehouse__Code", WarehouseCode },
                                          { "Route__Code", RouteCode },
                                          { "sNarration", Narration },
@@ -1234,9 +1308,14 @@ namespace KwalityIntegrationLibrary
                                      };
                         _log.EventLog("SalesReturn_TB header Data ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsTB.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        _log.EventLog("SalesReturn_TB item rows count" + rows.Count().ToString());
-                        foreach (DataRow item in rows)
+                        DataSet dsBody = _db.getFn("getSalesReturnTB_Body,@p1=" + docno, CompanyId);
+                        _log.EventLog("SalesReturn_TB item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if (dsBody.Tables[0].Rows.Count == 0)
+                        {
+                            _log.EventLog("No Body");
+                            continue;
+                        }
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
                         {
                             Hashtable objBody = new Hashtable
                                      {
@@ -1247,9 +1326,10 @@ namespace KwalityIntegrationLibrary
                                          { "StockAC__Id", item["iStocksAccount"].ToString().Trim() },
                                          { "Quantity", Convert.ToDecimal(item["Qty"].ToString().Trim()) },
                                          { "Rate", Convert.ToDecimal(item["Rate"].ToString().Trim()) },
-                                         { "Input Discount Amt", Convert.ToDecimal(item["Discount2"].ToString().Trim()) },
+                                         { "Discount %", Convert.ToDecimal(item["Discount2"].ToString().Trim()) },
                                          { "TaxCode__Code", "SR" },
-                                         { "VAT", Convert.ToDecimal(item["VAT2"].ToString().Trim()) }
+                                         { "VAT", Convert.ToDecimal(item["VAT2"].ToString().Trim()) },
+                                         { "Vat Amount", Convert.ToDecimal(item["TotalVATAmount"].ToString().Trim()) }
                                      };
                             lstBody.Add(objBody);
                         }
@@ -1262,6 +1342,7 @@ namespace KwalityIntegrationLibrary
 
                         string Url1 = baseUrl + "/Transactions/Vouchers/Sales Return - VAN";
                         _log.EventLog("SalesReturn_TB post url" + Url1);
+                        sessionID = GetSessionId(CompanyId);
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
@@ -1323,12 +1404,15 @@ namespace KwalityIntegrationLibrary
                         string Narration = Pic["Narration"].ToString().Trim();
                         string Grp = Pic["Grp"].ToString().Trim();
                         string LPONO = "";// Pic["PONo"].ToString().Trim();
+                        string PlaceOfSupply = Pic["PlaceOfSupply"].ToString().Trim();
+                        string Jurisdiction = Pic["Jurisdiction"].ToString().Trim();
                         Hashtable header = new Hashtable
                                      {
                                          { "DocNo", Pic["DocumentNo"].ToString().Trim() },
                                          { "Date", Convert.ToInt32(idate)},
                                          { "SalesAC__Name", SalesAccount},
                                          { "CustomerAC__Code", CustomerAC },
+                                         { "CustomerName__Code", CustomerAC },
                                          //{ "DueDate", Convert.ToInt32(DueDate) },
                                          { "Company Master__Id", 3 },
                                          { "Warehouse__Code", WarehouseCode },
@@ -1336,14 +1420,20 @@ namespace KwalityIntegrationLibrary
                                          { "sNarration", Narration },
                                          { "Group Customer Master__Name", Grp },
                                          { "LPO_No", LPONO },
-                                         { "ReturnType", "1" }
-
+                                         { "ReturnType", "1" },
+                                         { "Place of supply__Id", PlaceOfSupply},
+                                         { "Jurisdiction__Id", Jurisdiction }
                                      };
                         _log.EventLog("DamageStock_PIC header Data ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsPIC.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        _log.EventLog("DamageStock_PIC item rows count" + rows.Count().ToString());
-                        foreach (DataRow item in rows)
+                        DataSet dsBody = _db.getFn("getDamageStockPIC_Body,@p1=" + docno, CompanyId);
+                        _log.EventLog("DamageStock_PIC item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if (dsBody.Tables[0].Rows.Count == 0)
+                        {
+                            _log.EventLog("No Body");
+                            continue;
+                        }
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
                         {
                             Hashtable objBody = new Hashtable
                                      {
@@ -1354,9 +1444,10 @@ namespace KwalityIntegrationLibrary
                                          { "StockAC__Id", item["iStocksAccount"].ToString().Trim() },
                                          { "Quantity", Convert.ToDecimal(item["Qty"].ToString().Trim()) },
                                          { "Rate", Convert.ToDecimal(item["Rate"].ToString().Trim()) },
-                                         { "Input Discount Amt", Convert.ToDecimal(item["Discount2"].ToString().Trim()) },
+                                         { "Discount %", Convert.ToDecimal(item["Discount2"].ToString().Trim()) },
                                          { "TaxCode__Code", "SR" },
-                                         { "VAT", Convert.ToDecimal(item["VAT2"].ToString().Trim()) }
+                                         { "VAT", Convert.ToDecimal(item["VAT2"].ToString().Trim()) },
+                                         { "Vat Amount", Convert.ToDecimal(item["TotalVATAmount"].ToString().Trim()) }
                                      };
                             lstBody.Add(objBody);
                         }
@@ -1367,30 +1458,53 @@ namespace KwalityIntegrationLibrary
                         _log.EventLog("DamageStock_PIC Content" + sContent1);
                         string err1 = "";
 
-                        string Url1 = baseUrl + "/Transactions/Vouchers/Damage Stock";
+                        string Url1 = baseUrl + "/Transactions/Vouchers/Sales Return CN - VAN";
                         _log.EventLog("DamageStock_PIC post url" + Url1);
+                        sessionID = GetSessionId(CompanyId);
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
-                            _log.EventLog("DamageStock_PIC posting Response" + response1.ToString());
+                            _log.EventLog("DamageStock_PIC Sales Return CN VAN posting Response" + response1.ToString());
                             var responseData1 = JsonConvert.DeserializeObject<APIResponse.PostResponse>(response1);
                             if (responseData1.result == -1)
                             {
-                                _log.EventLog(" DamageStock_PIC posting Response failed" + responseData1.result.ToString());
-                                _log.EventLog("DamageStock_PIC Damage Stock Entry Posted Failed with DocNo: " + docno);
-                                _log.ErrLog(response1 + "\n " + " DamageStock_PIC Damage Stock Entry Posted Failed with DocNo: " + docno + " \n Error Message : " + responseData1.message + "\n " + err1);
+                                _log.EventLog(" DamageStock_PIC Sales Return CN VAN posting Response failed" + responseData1.result.ToString());
+                                _log.EventLog("DamageStock_PIC Sales Return CN VAN Entry Posted Failed with DocNo: " + docno);
+                                _log.ErrLog(response1 + "\n " + " DamageStock_PIC Sales Return CN VAN Entry Posted Failed with DocNo: " + docno + " \n Error Message : " + responseData1.message + "\n " + err1);
+                                continue;
                             }
                             else
                             {
-                                _log.EventLog(" DamageStock_PIC Damage Stock Entry Posted Successfully with DocNo: " + docno);
-                                int d = _db.setFn("setDamageStockPIC", docno, CompanyId);
-                                if (d != 0)
+                                _log.EventLog(" DamageStock_PIC Sales Return CN VAN Entry Posted Successfully with DocNo: " + docno);
+
+
+                                string Url2 = baseUrl + "/Transactions/Vouchers/Damage Stock";
+                                _log.EventLog("DamageStock_PIC post url" + Url2);
+                                sessionID = GetSessionId(CompanyId);
+                                var response2= Focus8API.Post(Url2, sContent1, sessionID, ref err1);
+                                if (response2 != null)
                                 {
-                                    _log.EventLog(" DamageStock_PIC FOCUS_WINIT DB updation successed with DocNo = " + docno);
-                                }
-                                else
-                                {
-                                    _log.EventLog(" DamageStock_PIC FOCUS_WINIT DB Updation failed with DocNo=" + docno);
+                                    _log.EventLog("DamageStock_PIC posting Response" + response2.ToString());
+                                    var responseData2 = JsonConvert.DeserializeObject<APIResponse.PostResponse>(response2);
+                                    if (responseData2.result == -1)
+                                    {
+                                        _log.EventLog(" DamageStock_PIC posting Response failed" + responseData2.result.ToString());
+                                        _log.EventLog("DamageStock_PIC Damage Stock Entry Posted Failed with DocNo: " + docno);
+                                        _log.ErrLog(response2 + "\n " + " DamageStock_PIC Damage Stock Entry Posted Failed with DocNo: " + docno + " \n Error Message : " + responseData2.message + "\n " + err1);
+                                    }
+                                    else
+                                    {
+                                        _log.EventLog(" DamageStock_PIC Damage Stock Entry Posted Successfully with DocNo: " + docno);
+                                        int d = _db.setFn("setDamageStockPIC", docno, CompanyId);
+                                        if (d != 0)
+                                        {
+                                            _log.EventLog(" DamageStock_PIC FOCUS_WINIT DB updation successed with DocNo = " + docno);
+                                        }
+                                        else
+                                        {
+                                            _log.EventLog(" DamageStock_PIC FOCUS_WINIT DB Updation failed with DocNo=" + docno);
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1430,26 +1544,36 @@ namespace KwalityIntegrationLibrary
                         string Narration = KIF["Narration"].ToString().Trim();
                         string Grp = KIF["Grp"].ToString().Trim();
                         string LPONO = "";//KIF["PONo"].ToString().Trim();
+                        string PlaceOfSupply = KIF["PlaceOfSupply"].ToString().Trim();
+                        string Jurisdiction = KIF["Jurisdiction"].ToString().Trim();
                         Hashtable header = new Hashtable
                                      {
                                          { "DocNo", KIF["DocumentNo"].ToString().Trim() },
                                          { "Date", Convert.ToInt32(idate)},
                                          { "SalesAC__Name", SalesAccount},
                                          { "CustomerAC__Code", CustomerAC },
+                                         { "CustomerName__Code", CustomerAC },
                                          //{ "DueDate", Convert.ToInt32(DueDate) },
-                                         { "Company Master__Id", 3 },
+                                         { "Company Master__Id", 4 },
                                          { "Warehouse__Code", WarehouseCode },
                                          { "Route__Code", RouteCode },
                                          { "sNarration", Narration },
                                          { "Group Customer Master__Name", Grp },
                                          { "LPO_No", LPONO },
-                                         { "ReturnType", "1" }
+                                         { "ReturnType", "1" },
+                                         { "Place of supply__Id", PlaceOfSupply},
+                                         { "Jurisdiction__Id", Jurisdiction }
                                      };
                         _log.EventLog("DamageStock_KIF header Data ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsKIF.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        _log.EventLog("DamageStock_KIF item rows count" + rows.Count().ToString());
-                        foreach (DataRow item in rows)
+                        DataSet dsBody = _db.getFn("getDamageStockKIF_Body,@p1=" + docno, CompanyId);
+                        _log.EventLog("DamageStock_KIF item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if (dsBody.Tables[0].Rows.Count == 0)
+                        {
+                            _log.EventLog("No Body");
+                            continue;
+                        }
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
                         {
                             Hashtable objBody = new Hashtable
                                      {
@@ -1460,9 +1584,10 @@ namespace KwalityIntegrationLibrary
                                          { "StockAC__Id", item["iStocksAccount"].ToString().Trim() },
                                          { "Quantity", Convert.ToDecimal(item["Qty"].ToString().Trim()) },
                                          { "Rate", Convert.ToDecimal(item["Rate"].ToString().Trim()) },
-                                         { "Input Discount Amt", Convert.ToDecimal(item["Discount2"].ToString().Trim()) },
+                                         { "Discount %", Convert.ToDecimal(item["Discount2"].ToString().Trim()) },
                                          { "TaxCode__Code", "SR" },
-                                         { "VAT", Convert.ToDecimal(item["VAT2"].ToString().Trim()) }
+                                         { "VAT", Convert.ToDecimal(item["VAT2"].ToString().Trim()) },
+                                         { "Vat Amount", Convert.ToDecimal(item["TotalVATAmount"].ToString().Trim()) }
                                      };
                             lstBody.Add(objBody);
                         }
@@ -1473,30 +1598,51 @@ namespace KwalityIntegrationLibrary
                         _log.EventLog("DamageStock_KIF Content" + sContent1);
                         string err1 = "";
 
-                        string Url1 = baseUrl + "/Transactions/Vouchers/Damage Stock";
+                        string Url1 = baseUrl + "/Transactions/Vouchers/Sales Return CN - VAN";
                         _log.EventLog("DamageStock_KIF post url" + Url1);
+                        sessionID = GetSessionId(CompanyId);
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
-                            _log.EventLog("DamageStock_KIF posting Response" + response1.ToString());
+                            _log.EventLog("DamageStock_KIF Sales Return CN VAN posting Response" + response1.ToString());
                             var responseData1 = JsonConvert.DeserializeObject<APIResponse.PostResponse>(response1);
                             if (responseData1.result == -1)
                             {
-                                _log.EventLog("DamageStock_KIF posting Response failed" + responseData1.result.ToString());
-                                _log.EventLog("DamageStock_KIF Damage Stock Entry Posted Failed with DocNo: " + docno);
-                                _log.ErrLog(response1 + "\n " + "Damage Stock Entry Posted Failed with DocNo: " + docno + " \n Error Message : " + responseData1.message + "\n " + err1);
+                                _log.EventLog("DamageStock_KIF Sales Return CN VAN posting Response failed" + responseData1.result.ToString());
+                                _log.EventLog("DamageStock_KIF Sales Return CN VAN Entry Posted Failed with DocNo: " + docno);
+                                _log.ErrLog(response1 + "\n " + "Sales Return CN VAN Entry Posted Failed with DocNo: " + docno + " \n Error Message : " + responseData1.message + "\n " + err1);
+                                continue;
                             }
                             else
                             {
-                                _log.EventLog("DamageStock_KIF Damage Stock Entry Posted Successfully with DocNo: " + docno);
-                                int d = _db.setFn("setDamageStockKIF", docno, CompanyId);
-                                if (d != 0)
+                                _log.EventLog("DamageStock_KIF Sales Return CN VAN Entry Posted Successfully with DocNo: " + docno);
+                                string Url2 = baseUrl + "/Transactions/Vouchers/Damage Stock";
+                                _log.EventLog("DamageStock_KIF post url" + Url2);
+                                sessionID = GetSessionId(CompanyId);
+                                var response2 = Focus8API.Post(Url2, sContent1, sessionID, ref err1);
+                                if (response2 != null)
                                 {
-                                    _log.EventLog(" DamageStock_KIF FOCUS_WINIT DB updation successed with DocNo = " + docno);
-                                }
-                                else
-                                {
-                                    _log.EventLog(" DamageStock_KIF FOCUS_WINIT DB Updation failed with DocNo=" + docno);
+                                    _log.EventLog("DamageStock_PIC posting Response" + response2.ToString());
+                                    var responseData2 = JsonConvert.DeserializeObject<APIResponse.PostResponse>(response2);
+                                    if (responseData2.result == -1)
+                                    {
+                                        _log.EventLog(" DamageStock_KIF posting Response failed" + responseData2.result.ToString());
+                                        _log.EventLog("DamageStock_KIF Damage Stock Entry Posted Failed with DocNo: " + docno);
+                                        _log.ErrLog(response2 + "\n " + " DamageStock_KIF Damage Stock Entry Posted Failed with DocNo: " + docno + " \n Error Message : " + responseData2.message + "\n " + err1);
+                                    }
+                                    else
+                                    {
+                                        _log.EventLog(" DamageStock_KIF Damage Stock Entry Posted Successfully with DocNo: " + docno);
+                                        int d = _db.setFn("setDamageStockKIF", docno, CompanyId);
+                                        if (d != 0)
+                                        {
+                                            _log.EventLog(" DamageStock_KIF FOCUS_WINIT DB updation successed with DocNo = " + docno);
+                                        }
+                                        else
+                                        {
+                                            _log.EventLog(" DamageStock_KIF FOCUS_WINIT DB Updation failed with DocNo=" + docno);
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1536,26 +1682,36 @@ namespace KwalityIntegrationLibrary
                         string Narration = TB["Narration"].ToString().Trim();
                         string Grp = TB["Grp"].ToString().Trim();
                         string LPONO = "";//TB["PONo"].ToString().Trim();
+                        string PlaceOfSupply = TB["PlaceOfSupply"].ToString().Trim();
+                        string Jurisdiction = TB["Jurisdiction"].ToString().Trim();
                         Hashtable header = new Hashtable
                                      {
                                          { "DocNo", TB["DocumentNo"].ToString().Trim() },
                                          { "Date", Convert.ToInt32(idate)},
                                          { "SalesAC__Name", SalesAccount},
                                          { "CustomerAC__Code", CustomerAC },
+                                         { "CustomerName__Code", CustomerAC },
                                          //{ "DueDate", Convert.ToInt32(DueDate) },
-                                         { "Company Master__Id", 3 },
+                                         { "Company Master__Id", 5 },
                                          { "Warehouse__Code", WarehouseCode },
                                          { "Route__Code", RouteCode },
                                          { "sNarration", Narration },
                                          { "Group Customer Master__Name", Grp },
                                          { "LPO_No", LPONO },
-                                         { "ReturnType", "1" }
+                                         { "ReturnType", "1" },
+                                         { "Place of supply__Id", PlaceOfSupply},
+                                         { "Jurisdiction__Id", Jurisdiction }
                                      };
                         _log.EventLog("DamageStock_TB header Data ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsTB.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        _log.EventLog("DamageStock_TB item rows count" + rows.Count().ToString());
-                        foreach (DataRow item in rows)
+                        DataSet dsBody = _db.getFn("getDamageStockTB_Body,@p1=" + docno, CompanyId);
+                        _log.EventLog("DamageStock_TB item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if (dsBody.Tables[0].Rows.Count == 0)
+                        {
+                            _log.EventLog("No Body");
+                            continue;
+                        }
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
                         {
                             Hashtable objBody = new Hashtable
                                      {
@@ -1566,9 +1722,10 @@ namespace KwalityIntegrationLibrary
                                          { "StockAC__Id", item["iStocksAccount"].ToString().Trim() },
                                          { "Quantity", Convert.ToDecimal(item["Qty"].ToString().Trim()) },
                                          { "Rate", Convert.ToDecimal(item["Rate"].ToString().Trim()) },
-                                         { "Input Discount Amt", Convert.ToDecimal(item["Discount2"].ToString().Trim()) },
+                                         { "Discount %", Convert.ToDecimal(item["Discount2"].ToString().Trim()) },
                                          { "TaxCode__Code", "SR" },
-                                         { "VAT", Convert.ToDecimal(item["VAT2"].ToString().Trim()) }
+                                         { "VAT", Convert.ToDecimal(item["VAT2"].ToString().Trim()) },
+                                         { "Vat Amount", Convert.ToDecimal(item["TotalVATAmount"].ToString().Trim()) }
                                      };
                             lstBody.Add(objBody);
                         }
@@ -1579,35 +1736,56 @@ namespace KwalityIntegrationLibrary
                         _log.EventLog("DamageStock_TB Content" + sContent1);
                         string err1 = "";
 
-                        string Url1 = baseUrl + "/Transactions/Vouchers/Damage Stock";
+                        string Url1 = baseUrl + "/Transactions/Vouchers/Sales Return CN - VAN";
                         _log.EventLog("DamageStock_TB post url" + Url1);
+                        sessionID = GetSessionId(CompanyId); 
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
-                            _log.EventLog("DamageStock_TB posting Response" + response1.ToString());
+                            _log.EventLog("DamageStock_TB Sales Return CN - VAN posting Response" + response1.ToString());
                             var responseData1 = JsonConvert.DeserializeObject<APIResponse.PostResponse>(response1);
                             if (responseData1.result == -1)
                             {
-                                _log.EventLog("DamageStock_TB posting Response failed" + responseData1.result.ToString());
-                                _log.EventLog("DamageStock_TB Damage Stock Entry Posted Failed with DocNo: " + docno);
-                                _log.ErrLog(response1 + "\n " + " DamageStock_TB Damage Stock Entry Posted Failed with DocNo: " + docno + " \n Error Message : " + responseData1.message + "\n " + err1);
+                                _log.EventLog("DamageStock_TB Sales Return CN - VAN posting Response failed" + responseData1.result.ToString());
+                                _log.EventLog("DamageStock_TB Sales Return CN - VAN Entry Posted Failed with DocNo: " + docno);
+                                _log.ErrLog(response1 + "\n " + " DamageStock_TB Sales Return CN - VAN Entry Posted Failed with DocNo: " + docno + " \n Error Message : " + responseData1.message + "\n " + err1);
+                                continue;
                             }
                             else
                             {
-                                _log.EventLog("DamageStock_TB Damage Stock Entry Posted Successfully with DocNo: " + docno);
-                                int d = _db.setFn("setDamageStockTB", docno, CompanyId);
-                                if (d != 0)
+                                _log.EventLog("DamageStock_TB Sales Return CN - VAN Entry Posted Successfully with DocNo: " + docno);
+                                string Url2 = baseUrl + "/Transactions/Vouchers/Damage Stock";
+                                _log.EventLog("DamageStock_TB post url" + Url2);
+                                sessionID = GetSessionId(CompanyId);
+                                var response2 = Focus8API.Post(Url2, sContent1, sessionID, ref err1);
+                                if (response2 != null)
                                 {
-                                    _log.EventLog("DamageStock_TB FOCUS_WINIT DB updation successed with DocNo = " + docno);
-                                }
-                                else
-                                {
-                                    _log.EventLog("DamageStock_TB FOCUS_WINIT DB Updation failed with DocNo=" + docno);
+                                    _log.EventLog("DamageStock_TB posting Response" + response2.ToString());
+                                    var responseData2 = JsonConvert.DeserializeObject<APIResponse.PostResponse>(response2);
+                                    if (responseData2.result == -1)
+                                    {
+                                        _log.EventLog(" DamageStock_TB posting Response failed" + responseData2.result.ToString());
+                                        _log.EventLog("DamageStock_TB Damage Stock Entry Posted Failed with DocNo: " + docno);
+                                        _log.ErrLog(response2 + "\n " + " DamageStock_TB Damage Stock Entry Posted Failed with DocNo: " + docno + " \n Error Message : " + responseData2.message + "\n " + err1);
+                                    }
+                                    else
+                                    {
+                                        _log.EventLog(" DamageStock_TB Damage Stock Entry Posted Successfully with DocNo: " + docno);
+
+                                        int d = _db.setFn("setDamageStockTB", docno, CompanyId);
+                                        if (d != 0)
+                                        {
+                                            _log.EventLog("DamageStock_TB FOCUS_WINIT DB updation successed with DocNo = " + docno);
+                                        }
+                                        else
+                                        {
+                                            _log.EventLog("DamageStock_TB FOCUS_WINIT DB Updation failed with DocNo=" + docno);
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
-
                 }
                 else
                 {
@@ -1641,41 +1819,179 @@ namespace KwalityIntegrationLibrary
                         string sChequeNo = Pic["ChequeNo"].ToString().Trim();
                         string CustomerAc = Pic["CustomerAC"].ToString().Trim();
                         string currencyId = Pic["currencyId"].ToString().Trim();
+                        string AcId = Pic["customerid"].ToString().Trim();
                         Hashtable header = new Hashtable
                                      {
-                                         { "DocNo", Pic["DocumentNo"].ToString().Trim() },
+                                         { "DocNo", docno },
                                          { "Date", Convert.ToInt32(idate)},
                                          { "CashBankAC__Name", CashBankAC__Name},
-                                         { "Company Master__Id", 3 },
-                                         { "Route__Code", RouteCode },
+                                         { "CollectedIn__Id", 3 },
+                                         //{ "Route__Code", RouteCode },
                                          { "sNarration", Narration },
                                          { "Group Customer Master__Name", Grp },
                                          { "sChequeNo", sChequeNo },
                                          { "Currency__Id", currencyId },
-                                         { "Salesman__Code", RouteCode }
+                                         //{ "Salesman__Code", RouteCode }
                                      };
                         _log.EventLog("Receipts_PIC header Data ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsPIC.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        _log.EventLog("Receipts_PIC item rows count" + rows.Count().ToString());
-                        foreach (DataRow item in rows)
+                        List<Hashtable> listbillRef = new List<Hashtable>();
+                        DataSet dsBody = _db.getFn("getReceiptsPIC_Body,@p1="+docno, CompanyId);
+                        _log.EventLog("Receipts_PIC item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if(dsBody.Tables[0].Rows.Count == 0)
                         {
-                            List<Hashtable> listbillRef = new List<Hashtable>();
-                            Hashtable billRef = new Hashtable();
-                            billRef.Add("CustomerId", item["customerid"].ToString().Trim());
-                            billRef.Add("Amount", Convert.ToDecimal(item["Amount"].ToString().Trim()));
-                            billRef.Add("reftype", 2);
-                            billRef.Add("Reference", item["InvoiceNumber"].ToString().Trim());
-                            listbillRef.Add(billRef);
-                            Hashtable objBody = new Hashtable
-                                     {
-                                         { "DocNo", item["DocumentNo"].ToString().Trim() },
-                                         { "Amount", Convert.ToDecimal(item["Amount"].ToString().Trim()) },
-                                         { "Reference", listbillRef },
-                                         { "Account__Id", item["customerid"].ToString().Trim() },
-                                     };
-                            lstBody.Add(objBody);
+                            _log.EventLog("No Body");
+                            continue;
                         }
+                        bool BodyLoopBreaks = false;
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
+                        {
+                            string refDocNo = "";
+                            string sql = $@"exec pCore_CommonSp @Operation=InvoiceCheckingPIC, @p1='{item["InvoiceNumber"].ToString().Trim()}'";
+                            _log.EventLog("Receipts_PIC sql" + sql);
+                            DataSet dsInvoice = _db.GetData(sql, CompanyId, ref error);
+                            if (dsInvoice != null)
+                            {
+                                if (dsInvoice.Tables.Count > 0)
+                                {
+                                    if (dsInvoice.Tables[0].Rows.Count > 0)
+                                    {
+                                        if (dsInvoice.Tables[0].Rows[0][0].ToString() == "1") // Invoice Found
+                                        {
+                                            refDocNo = item["InvoiceNumber"].ToString().Trim();
+                                            _log.EventLog("Invoice Found");
+                                        }
+                                        else if (dsInvoice.Tables[0].Rows[0][0].ToString() == "2") // Invoice Found in Opening Balance
+                                        {
+                                            refDocNo = dsInvoice.Tables[0].Rows[0]["sVoucherNo"].ToString();
+                                            _log.EventLog("Invoice Found as Opening Balance");
+                                        }
+                                        else if (dsInvoice.Tables[0].Rows[0][0].ToString() == "-1") //New Reference
+                                        {
+                                            refDocNo = "";
+                                            _log.EventLog("Invoice Not Found in Winit DB. Post as New Reference");
+                                        }
+                                        else if (dsInvoice.Tables[0].Rows[0][0].ToString() == "0")
+                                        {
+                                            if (dsInvoice.Tables.Count == 3)
+                                            {
+                                                DataSet dsInv = new DataSet();
+                                                if (dsInvoice.Tables[1].Rows.Count > 0)
+                                                {
+                                                    if (Convert.ToDateTime(dsInvoice.Tables[1].Rows[0]["tDate"]) >= Convert.ToDateTime(dsInvoice.Tables[0].Rows[0]["Startdate"]))
+                                                    {
+                                                        dsInv.Merge(dsInvoice.Tables[1]);
+                                                        dsInv.AcceptChanges();
+                                                        if (dsInvoice.Tables[2].Rows.Count > 0)
+                                                        {
+                                                            dsInv.Merge(dsInvoice.Tables[2]);
+                                                            dsInv.AcceptChanges();
+                                                            SalesInvoice_PIC(dsInv);
+                                                            if (InvFlag)
+                                                            {
+                                                                refDocNo = item["InvoiceNumber"].ToString().Trim();
+                                                                _log.EventLog("Invoice Posted");
+                                                            }
+                                                            else
+                                                            {
+                                                                _log.EventLog("Invoice Not Posted");
+                                                                BodyLoopBreaks = true;
+                                                                break;
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            _log.EventLog("NOT dsInvoice.Tables[2].Rows.Count > 0");
+                                                            BodyLoopBreaks = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        refDocNo = "";
+                                                        _log.EventLog("Invoice Transaction date is behind the Accounting Date");
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    _log.EventLog("NOT dsInvoice.Tables[1].Rows.Count > 0");
+                                                    BodyLoopBreaks = true;
+                                                    break;
+                                                }
+                                            }
+                                            else
+                                            {
+                                                _log.EventLog("NOT dsInvoice.Tables.Count == 3");
+                                                BodyLoopBreaks = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        _log.EventLog("NOT dsInvoice.Tables[0].Rows.Count > 0");
+                                        BodyLoopBreaks = true;
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    _log.EventLog("NOT dsInvoice.Tables.Count > 0");
+                                    BodyLoopBreaks = true;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                _log.EventLog("dsInvoice is null \n" + error);
+                                BodyLoopBreaks = true;
+                                break;
+                            }
+                            if (refDocNo == "")
+                            {
+
+                            }
+                            else
+                            {
+                                DataTable dt = _db.GetIRef(refDocNo, CompanyId);
+                                string refid= "0";
+                                if (dt != null)
+                                {
+                                    _log.EventLog("BillRef Datatable count = " + dt.Rows.Count);
+                                    _log.EventLog("BillRef iref = " + dt.Rows[0]["RefId"]);
+                                    refid = dt.Rows[0]["RefId"].ToString();
+                                }
+                                else
+                                {
+                                    _log.EventLog("could not find reference.");
+                                }
+                                Hashtable billRef = new Hashtable();
+                                billRef.Add("CustomerId", AcId);
+                                billRef.Add("Amount", Convert.ToDecimal(item["Amount"].ToString().Trim()));
+                                billRef.Add("reftype", 2);
+                                billRef.Add("Reference", refDocNo.Trim());
+                                billRef.Add("ref", Convert.ToInt32(refid));
+                                listbillRef.Add(billRef);
+                                _log.EventLog("Added in BillRef Array");
+                            }
+                        }
+                        if (BodyLoopBreaks)
+                        {
+                            _log.EventLog("BodyLoopBreaks");
+                            continue;
+                        }
+                        
+                        Hashtable objBody = new Hashtable
+                                     {
+                                         { "DocNo", docno },
+                                         { "Amount", Convert.ToDecimal(Pic["Amount"].ToString().Trim()) },
+                                         { "Reference", listbillRef },
+                                         { "Account__Id", AcId },
+                                         { "Route__Code", RouteCode },
+                                         { "Company Master__Id", 3 },
+                                         { "Group Customer Master__Name", Grp },
+                                     };
+                        lstBody.Add(objBody);
                         _log.EventLog("Receipts_PIC Body Data ready");
                         var postingData1 = new PostingData();
                         postingData1.data.Add(new Hashtable { { "Header", header }, { "Body", lstBody } });
@@ -1685,6 +2001,7 @@ namespace KwalityIntegrationLibrary
 
                         string Url1 = baseUrl + "/Transactions/Vouchers/Receipts";
                         _log.EventLog("Receipts_PIC post url" + Url1);
+                        sessionID = GetSessionId(CompanyId);
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
@@ -1745,45 +2062,183 @@ namespace KwalityIntegrationLibrary
                         string sChequeNo = KIF["ChequeNo"].ToString().Trim();
                         string CustomerAc = KIF["CustomerAC"].ToString().Trim();
                         string currencyId = KIF["currencyId"].ToString().Trim();
+                        string AcId = KIF["customerid"].ToString().Trim();
                         Hashtable header = new Hashtable
                                      {
-                                         { "DocNo", KIF["DocumentNo"].ToString().Trim() },
+                                         { "DocNo", docno },
                                          { "Date", Convert.ToInt32(idate)},
                                          { "CashBankAC__Name", CashBankAC__Name},
-                                         { "Company Master__Id", 3 },
-                                         { "Route__Code", RouteCode },
+                                         { "CollectedIn__Id", 4 },
+                                         //{ "Route__Code", RouteCode },
                                          { "sNarration", Narration },
                                          { "Group Customer Master__Name", Grp },
                                          { "sChequeNo", sChequeNo },
                                          { "Currency__Id", currencyId },
-                                         { "Salesman__Code", RouteCode }
+                                         //{ "Salesman__Code", RouteCode }
                                      };
+                        _log.EventLog("Receipts_KIF header Data ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsKIF.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        foreach (DataRow item in rows)
+                        List<Hashtable> listbillRef = new List<Hashtable>();
+                        DataSet dsBody = _db.getFn("getReceiptsKIF_Body,@p1=" + docno, CompanyId);
+                        _log.EventLog("Receipts_KIF item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if (dsBody.Tables[0].Rows.Count == 0)
                         {
-                            List<Hashtable> listbillRef = new List<Hashtable>();
-                            Hashtable billRef = new Hashtable();
-                            billRef.Add("CustomerId", item["customerid"].ToString().Trim());
-                            billRef.Add("Amount", Convert.ToDecimal(item["Amount"].ToString().Trim()));
-                            billRef.Add("reftype", 2);
-                            billRef.Add("Reference", item["InvoiceNumber"].ToString().Trim());
-                            listbillRef.Add(billRef);
-                            Hashtable objBody = new Hashtable
-                                     {
-                                         { "DocNo", item["DocumentNo"].ToString().Trim() },
-                                         { "Amount", Convert.ToDecimal(item["Amount"].ToString().Trim()) },
-                                         { "Reference", listbillRef },
-                                         { "Account__Id", item["customerid"].ToString().Trim() },
-                                     };
-                            lstBody.Add(objBody);
+                            _log.EventLog("No Body");
+                            continue;
                         }
+                        bool BodyLoopBreaks = false;
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
+                        {
+                            string refDocNo = "";
+                            string sql = $@"exec pCore_CommonSp @Operation=InvoiceCheckingKIF, @p1='{item["InvoiceNumber"].ToString().Trim()}'";
+                            DataSet dsInvoice = _db.GetData(sql, CompanyId, ref error);
+                            if (dsInvoice != null)
+                            {
+                                if (dsInvoice.Tables.Count > 0)
+                                {
+                                    if (dsInvoice.Tables[0].Rows.Count > 0)
+                                    {
+                                        if (dsInvoice.Tables[0].Rows[0][0].ToString() == "1") // Invoice Found
+                                        {
+                                            refDocNo = item["InvoiceNumber"].ToString().Trim();
+                                            _log.EventLog("Invoice Found");
+                                        }
+                                        if (dsInvoice.Tables[0].Rows[0][0].ToString() == "2") // Invoice Found in Opening Balance
+                                        {
+                                            refDocNo = dsInvoice.Tables[0].Rows[0]["sVoucherNo"].ToString();
+                                            _log.EventLog("Invoice Found as Opening Balance");
+                                        }
+                                        else if (dsInvoice.Tables[0].Rows[0][0].ToString() == "-1") //New Reference
+                                        {
+                                            refDocNo = "";
+                                            _log.EventLog("Invoice Not Found in Winit DB. Post as New Reference");
+                                        }
+                                        else if (dsInvoice.Tables[0].Rows[0][0].ToString() == "0")
+                                        {
+                                            if (dsInvoice.Tables.Count == 3)
+                                            {
+                                                DataSet dsInv = new DataSet();
+                                                if (dsInvoice.Tables[1].Rows.Count > 0)
+                                                {
+                                                    if (Convert.ToDateTime(dsInvoice.Tables[1].Rows[0]["tDate"]) >= Convert.ToDateTime(dsInvoice.Tables[0].Rows[0]["Startdate"]))
+                                                    {
+                                                        dsInv.Merge(dsInvoice.Tables[1]);
+                                                        dsInv.AcceptChanges();
+                                                        if (dsInvoice.Tables[2].Rows.Count > 0)
+                                                        {
+                                                            dsInv.Merge(dsInvoice.Tables[2]);
+                                                            dsInv.AcceptChanges();
+                                                            SalesInvoice_PIC(dsInv);
+                                                            if (InvFlag)
+                                                            {
+                                                                refDocNo = item["InvoiceNumber"].ToString().Trim();
+                                                                _log.EventLog("Invoice Posted");
+                                                            }
+                                                            else
+                                                            {
+                                                                _log.EventLog("Invoice Not Posted");
+                                                                BodyLoopBreaks = true;
+                                                                break;
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            _log.EventLog("NOT dsInvoice.Tables[2].Rows.Count > 0");
+                                                            BodyLoopBreaks = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        refDocNo = "";
+                                                        _log.EventLog("Invoice Transaction date is behind the Accounting Date");
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    _log.EventLog("NOT dsInvoice.Tables[1].Rows.Count > 0");
+                                                    BodyLoopBreaks = true;
+                                                    break;
+                                                }
+                                            }
+                                            else
+                                            {
+                                                _log.EventLog("NOT dsInvoice.Tables.Count == 3");
+                                                BodyLoopBreaks = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        _log.EventLog("NOT dsInvoice.Tables[0].Rows.Count > 0");
+                                        BodyLoopBreaks = true;
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    _log.EventLog("NOT dsInvoice.Tables.Count > 0");
+                                    BodyLoopBreaks = true;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                _log.EventLog("dsInvoice is null \n" + error);
+                                BodyLoopBreaks = true;
+                                break;
+                            }
+                            if (refDocNo == "")
+                            {
+
+                            }
+                            else
+                            {
+                                DataTable dt = _db.GetIRef(refDocNo, CompanyId);
+                                string refid = "0";
+                                if (dt != null)
+                                {
+                                    _log.EventLog("BillRef Datatable count = " + dt.Rows.Count);
+                                    _log.EventLog("BillRef iref = " + dt.Rows[0]["RefId"]);
+                                    refid = dt.Rows[0]["RefId"].ToString();
+                                }
+                                else
+                                {
+                                    _log.EventLog("could not find reference.");
+                                }
+                                Hashtable billRef = new Hashtable();
+                                billRef.Add("CustomerId", AcId);
+                                billRef.Add("Amount", Convert.ToDecimal(item["Amount"].ToString().Trim()));
+                                billRef.Add("reftype", 2);
+                                billRef.Add("Reference", refDocNo.Trim());
+                                billRef.Add("ref", Convert.ToInt32(refid));
+                                listbillRef.Add(billRef);
+                            }
+                        }
+                        if (BodyLoopBreaks)
+                        {
+                            _log.EventLog("BodyLoopBreaks");
+                            continue;
+                        }
+                        Hashtable objBody = new Hashtable
+                                     {
+                                         { "DocNo", docno },
+                                         { "Amount", Convert.ToDecimal(KIF["Amount"].ToString().Trim()) },
+                                         { "Reference", listbillRef },
+                                         { "Account__Id", AcId },
+                                         { "Route__Code", RouteCode },
+                                         { "Company Master__Id", 4 },
+                                         { "Group Customer Master__Name", Grp },
+                                     };
+                        lstBody.Add(objBody);
                         var postingData1 = new PostingData();
                         postingData1.data.Add(new Hashtable { { "Header", header }, { "Body", lstBody } });
                         string sContent1 = JsonConvert.SerializeObject(postingData1);
                         string err1 = "";
 
                         string Url1 = baseUrl + "/Transactions/Vouchers/Receipts";
+                        sessionID = GetSessionId(CompanyId);
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
@@ -1844,41 +2299,176 @@ namespace KwalityIntegrationLibrary
                         string sChequeNo = TB["ChequeNo"].ToString().Trim();
                         string CustomerAc = TB["CustomerAC"].ToString().Trim();
                         string currencyId = TB["currencyId"].ToString().Trim();
+                        string AcId = TB["customerid"].ToString().Trim();
                         Hashtable header = new Hashtable
                                      {
-                                         { "DocNo", TB["DocumentNo"].ToString().Trim() },
+                                         { "DocNo", docno },
                                          { "Date", Convert.ToInt32(idate)},
                                          { "CashBankAC__Name", CashBankAC__Name},
-                                         { "Company Master__Id", 3 },
-                                         { "Route__Code", RouteCode },
+                                         { "CollectedIn__Id", 5 },
+                                         //{ "Route__Code", RouteCode },
                                          { "sNarration", Narration },
                                          { "Group Customer Master__Name", Grp },
                                          { "sChequeNo", sChequeNo },
                                          { "Currency__Id", currencyId },
-                                         { "Salesman__Code", RouteCode }
+                                         //{ "Salesman__Code", RouteCode }
                                      };
                         _log.EventLog("Receipts_TB header Data ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsTB.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        _log.EventLog("Receipts_TB item rows count" + rows.Count().ToString());
-                        foreach (DataRow item in rows)
+                        List<Hashtable> listbillRef = new List<Hashtable>();
+                        DataSet dsBody = _db.getFn("getReceiptsTB_Body,@p1=" + docno, CompanyId);
+                        _log.EventLog("Receipts_TB item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if (dsBody.Tables[0].Rows.Count == 0)
                         {
-                            List<Hashtable> listbillRef = new List<Hashtable>();
-                            Hashtable billRef = new Hashtable();
-                            billRef.Add("CustomerId", item["customerid"].ToString().Trim());
-                            billRef.Add("Amount", Convert.ToDecimal(item["Amount"].ToString().Trim()));
-                            billRef.Add("reftype", 2);
-                            billRef.Add("Reference", item["InvoiceNumber"].ToString().Trim());
-                            listbillRef.Add(billRef);
-                            Hashtable objBody = new Hashtable
-                                     {
-                                         { "DocNo", item["DocumentNo"].ToString().Trim() },
-                                         { "Amount", Convert.ToDecimal(item["Amount"].ToString().Trim()) },
-                                         { "Reference", listbillRef },
-                                         { "Account__Id", item["customerid"].ToString().Trim() },
-                                     };
-                            lstBody.Add(objBody);
+                            _log.EventLog("No Body");
+                            continue;
                         }
+                        bool BodyLoopBreaks = false;
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
+                        {
+                            string refDocNo = "";
+                            string sql = $@"exec pCore_CommonSp @Operation=InvoiceCheckingTB, @p1='{item["InvoiceNumber"].ToString().Trim()}'";
+                            DataSet dsInvoice = _db.GetData(sql, CompanyId, ref error);
+                            if (dsInvoice != null)
+                            {
+                                if (dsInvoice.Tables.Count > 0)
+                                {
+                                    if (dsInvoice.Tables[0].Rows.Count > 0)
+                                    {
+                                        if (dsInvoice.Tables[0].Rows[0][0].ToString() == "1") // Invoice Found
+                                        {
+                                            refDocNo = item["InvoiceNumber"].ToString().Trim();
+                                            _log.EventLog("Invoice Found");
+                                        }
+                                        if (dsInvoice.Tables[0].Rows[0][0].ToString() == "2") // Invoice Found in Opening Balance
+                                        {
+                                            refDocNo = dsInvoice.Tables[0].Rows[0]["sVoucherNo"].ToString();
+                                            _log.EventLog("Invoice Found as Opening Balance");
+                                        }
+                                        else if (dsInvoice.Tables[0].Rows[0][0].ToString() == "-1") //New Reference
+                                        {
+                                            refDocNo = "";
+                                            _log.EventLog("Invoice Not Found in Winit DB. Post as New Reference");
+                                        }
+                                        else if (dsInvoice.Tables[0].Rows[0][0].ToString() == "0")
+                                        {
+                                            if (dsInvoice.Tables.Count == 3)
+                                            {
+                                                DataSet dsInv = new DataSet();
+                                                if (dsInvoice.Tables[1].Rows.Count > 0)
+                                                {
+                                                    if (Convert.ToDateTime(dsInvoice.Tables[1].Rows[0]["tDate"]) >= Convert.ToDateTime(dsInvoice.Tables[0].Rows[0]["Startdate"]))
+                                                    {
+                                                        dsInv.Merge(dsInvoice.Tables[1]);
+                                                        dsInv.AcceptChanges();
+                                                        if (dsInvoice.Tables[2].Rows.Count > 0)
+                                                        {
+                                                            dsInv.Merge(dsInvoice.Tables[2]);
+                                                            dsInv.AcceptChanges();
+                                                            SalesInvoice_PIC(dsInv);
+                                                            if (InvFlag)
+                                                            {
+                                                                refDocNo = item["InvoiceNumber"].ToString().Trim();
+                                                                _log.EventLog("Invoice Posted");
+                                                            }
+                                                            else
+                                                            {
+                                                                _log.EventLog("Invoice Not Posted");
+                                                                BodyLoopBreaks = true;
+                                                                break;
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            _log.EventLog("NOT dsInvoice.Tables[2].Rows.Count > 0");
+                                                            BodyLoopBreaks = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        refDocNo = "";
+                                                        _log.EventLog("Invoice Transaction date is behind the Accounting Date");
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    _log.EventLog("NOT dsInvoice.Tables[1].Rows.Count > 0");
+                                                    BodyLoopBreaks = true;
+                                                    break;
+                                                }
+                                            }
+                                            else
+                                            {
+                                                _log.EventLog("NOT dsInvoice.Tables.Count == 3");
+                                                BodyLoopBreaks = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        _log.EventLog("NOT dsInvoice.Tables[0].Rows.Count > 0");
+                                        BodyLoopBreaks = true;
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    _log.EventLog("NOT dsInvoice.Tables.Count > 0");
+                                    BodyLoopBreaks = true;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                _log.EventLog("dsInvoice is null \n" + error);
+                                BodyLoopBreaks = true;
+                                break;
+                            }
+                            if (refDocNo == "")
+                            {
+
+                            }
+                            else
+                            {
+                                DataTable dt = _db.GetIRef(refDocNo, CompanyId);
+                                string refid = "0";
+                                if (dt != null)
+                                {
+                                    _log.EventLog("BillRef Datatable count = " + dt.Rows.Count);
+                                    _log.EventLog("BillRef iref = " + dt.Rows[0]["RefId"]);
+                                    refid = dt.Rows[0]["RefId"].ToString();
+                                }
+                                else
+                                {
+                                    _log.EventLog("could not find reference.");
+                                }
+                                Hashtable billRef = new Hashtable();
+                                billRef.Add("CustomerId", AcId);
+                                billRef.Add("Amount", Convert.ToDecimal(item["Amount"].ToString().Trim()));
+                                billRef.Add("reftype", 2);
+                                billRef.Add("Reference", refDocNo.Trim());
+                                billRef.Add("ref", Convert.ToInt32(refid));
+                                listbillRef.Add(billRef);
+                            }
+                        }
+                        if (BodyLoopBreaks)
+                        {
+                            _log.EventLog("BodyLoopBreaks");
+                            continue;
+                        }
+                        Hashtable objBody = new Hashtable
+                                     {
+                                         { "DocNo", docno },
+                                         { "Amount", Convert.ToDecimal(TB["Amount"].ToString().Trim()) },
+                                         { "Reference", listbillRef },
+                                         { "Account__Id", AcId },
+                                         { "Route__Code", RouteCode },
+                                         { "Company Master__Id", 5 },
+                                         { "Group Customer Master__Name", Grp },
+                                     };
+                        lstBody.Add(objBody);
                         _log.EventLog("Receipts_TB Body Data ready");
                         var postingData1 = new PostingData();
                         postingData1.data.Add(new Hashtable { { "Header", header }, { "Body", lstBody } });
@@ -1888,6 +2478,7 @@ namespace KwalityIntegrationLibrary
 
                         string Url1 = baseUrl + "/Transactions/Vouchers/Receipts";
                         _log.EventLog("Receipts_TB post url" + Url1);
+                        sessionID = GetSessionId(CompanyId);
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
@@ -1941,6 +2532,7 @@ namespace KwalityIntegrationLibrary
                         docno = Pic["DocumentNo"].ToString().Trim();
                         _log.EventLog("docno" + docno);
                         string idate = Pic["intDate"].ToString().Trim();
+                        int mDate = DB_lib.GetDateToInt(Convert.ToDateTime(Pic["mDate"].ToString().Trim()));
                         string CashBankAC__Name = Pic["CashBankAC"].ToString().Trim();
                         string RouteCode = Pic["Salesman"].ToString().Trim();
                         string Narration = Pic["Narration"].ToString().Trim();
@@ -1948,41 +2540,176 @@ namespace KwalityIntegrationLibrary
                         string sChequeNo = Pic["ChequeNo"].ToString().Trim();
                         string CustomerAc = Pic["CustomerAC"].ToString().Trim();
                         string currencyId = Pic["currencyId"].ToString().Trim();
+                        string AcId = Pic["customerid"].ToString().Trim();
                         Hashtable header = new Hashtable
                                      {
-                                         { "DocNo", Pic["DocumentNo"].ToString().Trim() },
+                                         { "DocNo", docno },
                                          { "Date", Convert.ToInt32(idate)},
                                          { "CashBankAC__Name", CashBankAC__Name},
-                                         { "Company Master__Id", 3 },
-                                         { "Route__Code", RouteCode },
+                                         { "CollectedIn__Id", 3 },
+                                         { "MaturityDate", mDate },
                                          { "sNarration", Narration },
                                          { "Group Customer Master__Name", Grp },
                                          { "sChequeNo", sChequeNo },
                                          { "Currency__Id", currencyId },
-                                         { "Salesman__Code", RouteCode }
+                                         //{ "Salesman__Code", RouteCode }
                                      };
                         _log.EventLog("PDCReceipts_PIC header Data ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsPIC.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        _log.EventLog("PDCReceipts_PIC item rows count" + rows.Count().ToString());
-                        foreach (DataRow item in rows)
+                        List<Hashtable> listbillRef = new List<Hashtable>();
+                        DataSet dsBody = _db.getFn("getPDCReceiptsPIC_Body,@p1=" + docno, CompanyId);
+                        _log.EventLog("PDCReceipts_PIC item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if (dsBody.Tables[0].Rows.Count == 0)
                         {
-                            List<Hashtable> listbillRef = new List<Hashtable>();
-                            Hashtable billRef = new Hashtable();
-                            billRef.Add("CustomerId", item["customerid"].ToString().Trim());
-                            billRef.Add("Amount", Convert.ToDecimal(item["Amount"].ToString().Trim()));
-                            billRef.Add("reftype", 2);
-                            billRef.Add("Reference", item["InvoiceNumber"].ToString().Trim());
-                            listbillRef.Add(billRef);
-                            Hashtable objBody = new Hashtable
-                                     {
-                                         { "DocNo", item["DocumentNo"].ToString().Trim() },
-                                         { "Amount", Convert.ToDecimal(item["Amount"].ToString().Trim()) },
-                                         { "Reference", listbillRef },
-                                         { "Account__Id", item["customerid"].ToString().Trim() },
-                                     };
-                            lstBody.Add(objBody);
+                            _log.EventLog("No Body");
+                            continue;
                         }
+                        bool BodyLoopBreaks = false;
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
+                        {
+                            string refDocNo = "";
+                            string sql = $@"exec pCore_CommonSp @Operation=InvoiceCheckingPIC, @p1='{item["InvoiceNumber"].ToString().Trim()}'";
+                            DataSet dsInvoice = _db.GetData(sql, CompanyId,ref error);
+                            if(dsInvoice != null)
+                            {
+                                if (dsInvoice.Tables.Count > 0)
+                                {
+                                    if (dsInvoice.Tables[0].Rows.Count > 0)
+                                    {
+                                        if (dsInvoice.Tables[0].Rows[0][0].ToString() == "1") // Invoice Found
+                                        {
+                                            refDocNo = item["InvoiceNumber"].ToString().Trim();
+                                            _log.EventLog("Invoice Found");
+                                        }
+                                        if (dsInvoice.Tables[0].Rows[0][0].ToString() == "2") // Invoice Found in Opening Balance
+                                        {
+                                            refDocNo = dsInvoice.Tables[0].Rows[0]["sVoucherNo"].ToString();
+                                            _log.EventLog("Invoice Found as Opening Balance");
+                                        }
+                                        else if (dsInvoice.Tables[0].Rows[0][0].ToString() == "-1") //New Reference
+                                        {
+                                            refDocNo = "";
+                                            _log.EventLog("Invoice Not Found in Winit DB. Post as New Reference");
+                                        }
+                                        else if (dsInvoice.Tables[0].Rows[0][0].ToString() == "0")
+                                        {
+                                            if (dsInvoice.Tables.Count == 3)
+                                            {
+                                                DataSet dsInv = new DataSet();
+                                                if (dsInvoice.Tables[1].Rows.Count > 0)
+                                                {
+                                                    if (Convert.ToDateTime(dsInvoice.Tables[1].Rows[0]["tDate"]) >= Convert.ToDateTime(dsInvoice.Tables[0].Rows[0]["Startdate"]))
+                                                    {
+                                                        dsInv.Merge(dsInvoice.Tables[1]);
+                                                        dsInv.AcceptChanges();
+                                                        if (dsInvoice.Tables[2].Rows.Count > 0)
+                                                        {
+                                                            dsInv.Merge(dsInvoice.Tables[2]);
+                                                            dsInv.AcceptChanges();
+                                                            SalesInvoice_PIC(dsInv);
+                                                            if (InvFlag)
+                                                            {
+                                                                refDocNo = item["InvoiceNumber"].ToString().Trim();
+                                                                _log.EventLog("Invoice Posted");
+                                                            }
+                                                            else
+                                                            {
+                                                                _log.EventLog("Invoice Not Posted");
+                                                                BodyLoopBreaks = true;
+                                                                break;
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            _log.EventLog("NOT dsInvoice.Tables[2].Rows.Count > 0");
+                                                            BodyLoopBreaks = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        refDocNo = "";
+                                                        _log.EventLog("Invoice Transaction date is behind the Accounting Date");
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    _log.EventLog("NOT dsInvoice.Tables[1].Rows.Count > 0");
+                                                    BodyLoopBreaks = true;
+                                                    break;
+                                                }
+                                            }
+                                            else
+                                            {
+                                                _log.EventLog("NOT dsInvoice.Tables.Count == 3");
+                                                BodyLoopBreaks = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        _log.EventLog("NOT dsInvoice.Tables[0].Rows.Count > 0");
+                                        BodyLoopBreaks = true;
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    _log.EventLog("NOT dsInvoice.Tables.Count > 0");
+                                    BodyLoopBreaks = true;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                _log.EventLog("dsInvoice is null \n" + error);
+                                BodyLoopBreaks = true;
+                                break;
+                            }
+                            if (refDocNo == "")
+                            {
+
+                            }
+                            else
+                            {
+                                DataTable dt = _db.GetIRef(refDocNo, CompanyId);
+                                string refid = "0";
+                                if (dt != null)
+                                {
+                                    _log.EventLog("BillRef Datatable count = " + dt.Rows.Count);
+                                    _log.EventLog("BillRef iref = " + dt.Rows[0]["RefId"]);
+                                    refid = dt.Rows[0]["RefId"].ToString();
+                                }
+                                else
+                                {
+                                    _log.EventLog("could not find reference.");
+                                }
+                                Hashtable billRef = new Hashtable();
+                                billRef.Add("CustomerId", AcId);
+                                billRef.Add("Amount", Convert.ToDecimal(item["Amount"].ToString().Trim()));
+                                billRef.Add("reftype", 2);
+                                billRef.Add("Reference", refDocNo.Trim());
+                                billRef.Add("ref", Convert.ToInt32(refid));
+                                listbillRef.Add(billRef);
+                            }
+                        }
+                        if (BodyLoopBreaks)
+                        {
+                            _log.EventLog("BodyLoopBreaks");
+                            continue;
+                        }
+                        Hashtable objBody = new Hashtable
+                                     {
+                                         { "DocNo", docno },
+                                         { "Amount", Convert.ToDecimal(Pic["Amount"].ToString().Trim()) },
+                                         { "Reference", listbillRef },
+                                         { "Account__Id", AcId },
+                                         { "Route__Code", RouteCode },
+                                         { "Company Master__Id", 3 },
+                                         { "Group Customer Master__Name", Grp },
+                                     };
+                        lstBody.Add(objBody);
                         _log.EventLog("PDCReceipts_PIC Body Data ready");
                         var postingData1 = new PostingData();
                         postingData1.data.Add(new Hashtable { { "Header", header }, { "Body", lstBody } });
@@ -1992,6 +2719,7 @@ namespace KwalityIntegrationLibrary
 
                         string Url1 = baseUrl + "/Transactions/Vouchers/Post-Dated Receipts";
                         _log.EventLog("PDCReceipts_PIC post url" + Url1);
+                        sessionID = GetSessionId(CompanyId);
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
@@ -2045,6 +2773,7 @@ namespace KwalityIntegrationLibrary
                         docno = KIF["DocumentNo"].ToString().Trim();
                         _log.EventLog("docno" + docno);
                         string idate = KIF["intDate"].ToString().Trim();
+                        int mDate = DB_lib.GetDateToInt(Convert.ToDateTime(KIF["mDate"].ToString().Trim()));
                         string CashBankAC__Name = KIF["CashBankAC"].ToString().Trim();
                         string RouteCode = KIF["Salesman"].ToString().Trim();
                         string Narration = KIF["Narration"].ToString().Trim();
@@ -2052,45 +2781,183 @@ namespace KwalityIntegrationLibrary
                         string sChequeNo = KIF["ChequeNo"].ToString().Trim();
                         string CustomerAc = KIF["CustomerAC"].ToString().Trim();
                         string currencyId = KIF["currencyId"].ToString().Trim();
+                        string AcId = KIF["customerid"].ToString().Trim();
                         Hashtable header = new Hashtable
                                      {
-                                         { "DocNo", KIF["DocumentNo"].ToString().Trim() },
+                                         { "DocNo", docno },
                                          { "Date", Convert.ToInt32(idate)},
                                          { "CashBankAC__Name", CashBankAC__Name},
-                                         { "Company Master__Id", 3 },
-                                         { "Route__Code", RouteCode },
+                                         { "CollectedIn__Id", 4 },
+                                         { "MaturityDate", mDate },
                                          { "sNarration", Narration },
                                          { "Group Customer Master__Name", Grp },
                                          { "sChequeNo", sChequeNo },
                                          { "Currency__Id", currencyId },
-                                         { "Salesman__Code", RouteCode }
+                                         //{ "Salesman__Code", RouteCode }
                                      };
+                        _log.EventLog("PDCReceipts_KIF header Data ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsKIF.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        foreach (DataRow item in rows)
+                        List<Hashtable> listbillRef = new List<Hashtable>();
+                        DataSet dsBody = _db.getFn("getPDCReceiptsKIF_Body,@p1=" + docno, CompanyId);
+                        _log.EventLog("PDCReceipts_KIF item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if (dsBody.Tables[0].Rows.Count == 0)
                         {
-                            List<Hashtable> listbillRef = new List<Hashtable>();
-                            Hashtable billRef = new Hashtable();
-                            billRef.Add("CustomerId", item["customerid"].ToString().Trim());
-                            billRef.Add("Amount", Convert.ToDecimal(item["Amount"].ToString().Trim()));
-                            billRef.Add("reftype", 2);
-                            billRef.Add("Reference", item["InvoiceNumber"].ToString().Trim());
-                            listbillRef.Add(billRef);
-                            Hashtable objBody = new Hashtable
-                                     {
-                                         { "DocNo", item["DocumentNo"].ToString().Trim() },
-                                         { "Amount", Convert.ToDecimal(item["Amount"].ToString().Trim()) },
-                                         { "Reference", listbillRef },
-                                         { "Account__Id", item["customerid"].ToString().Trim() },
-                                     };
-                            lstBody.Add(objBody);
+                            _log.EventLog("No Body");
+                            continue;
                         }
+                        bool BodyLoopBreaks = false;
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
+                        {
+                            string refDocNo = "";
+                            string sql = $@"exec pCore_CommonSp @Operation=InvoiceCheckingKIF, @p1='{item["InvoiceNumber"].ToString().Trim()}'";
+                            DataSet dsInvoice = _db.GetData(sql, CompanyId, ref error);
+                            if (dsInvoice != null)
+                            {
+                                if (dsInvoice.Tables.Count > 0)
+                                {
+                                    if (dsInvoice.Tables[0].Rows.Count > 0)
+                                    {
+                                        if (dsInvoice.Tables[0].Rows[0][0].ToString() == "1") // Invoice Found
+                                        {
+                                            refDocNo = item["InvoiceNumber"].ToString().Trim();
+                                            _log.EventLog("Invoice Found");
+                                        }
+                                        if (dsInvoice.Tables[0].Rows[0][0].ToString() == "2") // Invoice Found in Opening Balance
+                                        {
+                                            refDocNo = dsInvoice.Tables[0].Rows[0]["sVoucherNo"].ToString();
+                                            _log.EventLog("Invoice Found as Opening Balance");
+                                        }
+                                        else if (dsInvoice.Tables[0].Rows[0][0].ToString() == "-1") //New Reference
+                                        {
+                                            refDocNo = "";
+                                            _log.EventLog("Invoice Not Found in Winit DB. Post as New Reference");
+                                        }
+                                        else if (dsInvoice.Tables[0].Rows[0][0].ToString() == "0")
+                                        {
+                                            if (dsInvoice.Tables.Count == 3)
+                                            {
+                                                DataSet dsInv = new DataSet();
+                                                if (dsInvoice.Tables[1].Rows.Count > 0)
+                                                {
+                                                    if (Convert.ToDateTime(dsInvoice.Tables[1].Rows[0]["tDate"]) >= Convert.ToDateTime(dsInvoice.Tables[0].Rows[0]["Startdate"]))
+                                                    {
+                                                        dsInv.Merge(dsInvoice.Tables[1]);
+                                                        dsInv.AcceptChanges();
+                                                        if (dsInvoice.Tables[2].Rows.Count > 0)
+                                                        {
+                                                            dsInv.Merge(dsInvoice.Tables[2]);
+                                                            dsInv.AcceptChanges();
+                                                            SalesInvoice_PIC(dsInv);
+                                                            if (InvFlag)
+                                                            {
+                                                                refDocNo = item["InvoiceNumber"].ToString().Trim();
+                                                                _log.EventLog("Invoice Posted");
+                                                            }
+                                                            else
+                                                            {
+                                                                _log.EventLog("Invoice Not Posted");
+                                                                BodyLoopBreaks = true;
+                                                                break;
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            _log.EventLog("NOT dsInvoice.Tables[2].Rows.Count > 0");
+                                                            BodyLoopBreaks = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        refDocNo = "";
+                                                        _log.EventLog("Invoice Transaction date is behind the Accounting Date");
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    _log.EventLog("NOT dsInvoice.Tables[1].Rows.Count > 0");
+                                                    BodyLoopBreaks = true;
+                                                    break;
+                                                }
+                                            }
+                                            else
+                                            {
+                                                _log.EventLog("NOT dsInvoice.Tables.Count == 3");
+                                                BodyLoopBreaks = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        _log.EventLog("NOT dsInvoice.Tables[0].Rows.Count > 0");
+                                        BodyLoopBreaks = true;
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    _log.EventLog("NOT dsInvoice.Tables.Count > 0");
+                                    BodyLoopBreaks = true;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                _log.EventLog("dsInvoice is null \n" + error);
+                                BodyLoopBreaks = true;
+                                break;
+                            }
+                            if (refDocNo == "")
+                            {
+
+                            }
+                            else
+                            {
+                                DataTable dt = _db.GetIRef(refDocNo, CompanyId);
+                                string refid = "0";
+                                if (dt != null)
+                                {
+                                    _log.EventLog("BillRef Datatable count = " + dt.Rows.Count);
+                                    _log.EventLog("BillRef iref = " + dt.Rows[0]["RefId"]);
+                                    refid = dt.Rows[0]["RefId"].ToString();
+                                }
+                                else
+                                {
+                                    _log.EventLog("could not find reference.");
+                                }
+                                Hashtable billRef = new Hashtable();
+                                billRef.Add("CustomerId", AcId);
+                                billRef.Add("Amount", Convert.ToDecimal(item["Amount"].ToString().Trim()));
+                                billRef.Add("reftype", 2);
+                                billRef.Add("Reference", refDocNo.Trim());
+                                billRef.Add("ref", Convert.ToInt32(refid));
+                                listbillRef.Add(billRef);
+                            }
+                        }
+                        if (BodyLoopBreaks)
+                        {
+                            _log.EventLog("BodyLoopBreaks");
+                            continue;
+                        }
+                        Hashtable objBody = new Hashtable
+                                     {
+                                         { "DocNo", docno },
+                                         { "Amount", Convert.ToDecimal(KIF["Amount"].ToString().Trim()) },
+                                         { "Reference", listbillRef },
+                                         { "Account__Id", AcId },
+                                         { "Route__Code", RouteCode },
+                                         { "Company Master__Id", 4 },
+                                         { "Group Customer Master__Name", Grp },
+                                     };
+                        lstBody.Add(objBody);
                         var postingData1 = new PostingData();
                         postingData1.data.Add(new Hashtable { { "Header", header }, { "Body", lstBody } });
                         string sContent1 = JsonConvert.SerializeObject(postingData1);
                         string err1 = "";
 
                         string Url1 = baseUrl + "/Transactions/Vouchers/Post-Dated Receipts";
+                        sessionID = GetSessionId(CompanyId);
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
@@ -2144,6 +3011,7 @@ namespace KwalityIntegrationLibrary
                         docno = TB["DocumentNo"].ToString().Trim();
                         _log.EventLog("docno" + docno);
                         string idate = TB["intDate"].ToString().Trim();
+                        int mDate = DB_lib.GetDateToInt(Convert.ToDateTime(TB["mDate"].ToString().Trim()));
                         string CashBankAC__Name = TB["CashBankAC"].ToString().Trim();
                         string RouteCode = TB["Salesman"].ToString().Trim();
                         string Narration = TB["Narration"].ToString().Trim();
@@ -2151,41 +3019,176 @@ namespace KwalityIntegrationLibrary
                         string sChequeNo = TB["ChequeNo"].ToString().Trim();
                         string CustomerAc = TB["CustomerAC"].ToString().Trim();
                         string currencyId = TB["currencyId"].ToString().Trim();
+                        string AcId = TB["customerid"].ToString().Trim();
                         Hashtable header = new Hashtable
                                      {
-                                         { "DocNo", TB["DocumentNo"].ToString().Trim() },
+                                         { "DocNo", docno },
                                          { "Date", Convert.ToInt32(idate)},
                                          { "CashBankAC__Name", CashBankAC__Name},
-                                         { "Company Master__Id", 3 },
-                                         { "Route__Code", RouteCode },
+                                         { "CollectedIn__Id", 5},
+                                         { "MaturityDate", mDate },
                                          { "sNarration", Narration },
                                          { "Group Customer Master__Name", Grp },
                                          { "sChequeNo", sChequeNo },
                                          { "Currency__Id", currencyId },
-                                         { "Salesman__Code", RouteCode }
+                                         //{ "Salesman__Code", RouteCode }
                                      };
                         _log.EventLog("PDCReceipts_TB header Data ready");
                         List<Hashtable> lstBody = new List<Hashtable>();
-                        DataRow[] rows = dsTB.Tables[1].Select("DocumentNo = '" + docno.Trim() + "'");
-                        _log.EventLog("PDCReceipts_TB item rows count" + rows.Count().ToString());
-                        foreach (DataRow item in rows)
+                        List<Hashtable> listbillRef = new List<Hashtable>();
+                        DataSet dsBody = _db.getFn("getPDCReceiptsTB_Body,@p1=" + docno, CompanyId);
+                        _log.EventLog("PDCReceipts_TB item rows count" + dsBody.Tables[0].Rows.Count.ToString());
+                        if (dsBody.Tables[0].Rows.Count == 0)
                         {
-                            List<Hashtable> listbillRef = new List<Hashtable>();
-                            Hashtable billRef = new Hashtable();
-                            billRef.Add("CustomerId", item["customerid"].ToString().Trim());
-                            billRef.Add("Amount", Convert.ToDecimal(item["Amount"].ToString().Trim()));
-                            billRef.Add("reftype", 2);
-                            billRef.Add("Reference", item["InvoiceNumber"].ToString().Trim());
-                            listbillRef.Add(billRef);
-                            Hashtable objBody = new Hashtable
-                                     {
-                                         { "DocNo", item["DocumentNo"].ToString().Trim() },
-                                         { "Amount", Convert.ToDecimal(item["Amount"].ToString().Trim()) },
-                                         { "Reference", listbillRef },
-                                         { "Account__Id", item["customerid"].ToString().Trim() },
-                                     };
-                            lstBody.Add(objBody);
+                            _log.EventLog("No Body");
+                            continue;
                         }
+                        bool BodyLoopBreaks = false;
+                        foreach (DataRow item in dsBody.Tables[0].Rows)
+                        {
+                            string refDocNo = "";
+                            string sql = $@"exec pCore_CommonSp @Operation=InvoiceCheckingTB, @p1='{item["InvoiceNumber"].ToString().Trim()}'";
+                            DataSet dsInvoice = _db.GetData(sql, CompanyId, ref error);
+                            if (dsInvoice != null)
+                            {
+                                if (dsInvoice.Tables.Count > 0)
+                                {
+                                    if (dsInvoice.Tables[0].Rows.Count > 0)
+                                    {
+                                        if (dsInvoice.Tables[0].Rows[0][0].ToString() == "1") // Invoice Found
+                                        {
+                                            refDocNo = item["InvoiceNumber"].ToString().Trim();
+                                            _log.EventLog("Invoice Found");
+                                        }
+                                        if (dsInvoice.Tables[0].Rows[0][0].ToString() == "2") // Invoice Found in Opening Balance
+                                        {
+                                            refDocNo = dsInvoice.Tables[0].Rows[0]["sVoucherNo"].ToString();
+                                            _log.EventLog("Invoice Found as Opening Balance");
+                                        }
+                                        else if (dsInvoice.Tables[0].Rows[0][0].ToString() == "-1") //New Reference
+                                        {
+                                            refDocNo = "";
+                                            _log.EventLog("Invoice Not Found in Winit DB. Post as New Reference");
+                                        }
+                                        else if (dsInvoice.Tables[0].Rows[0][0].ToString() == "0")
+                                        {
+                                            if (dsInvoice.Tables.Count == 3)
+                                            {
+                                                DataSet dsInv = new DataSet();
+                                                if (dsInvoice.Tables[1].Rows.Count > 0)
+                                                {
+                                                    if (Convert.ToDateTime(dsInvoice.Tables[1].Rows[0]["tDate"]) >= Convert.ToDateTime(dsInvoice.Tables[0].Rows[0]["Startdate"]))
+                                                    {
+                                                        dsInv.Merge(dsInvoice.Tables[1]);
+                                                        dsInv.AcceptChanges();
+                                                        if (dsInvoice.Tables[2].Rows.Count > 0)
+                                                        {
+                                                            dsInv.Merge(dsInvoice.Tables[2]);
+                                                            dsInv.AcceptChanges();
+                                                            SalesInvoice_PIC(dsInv);
+                                                            if (InvFlag)
+                                                            {
+                                                                refDocNo = item["InvoiceNumber"].ToString().Trim();
+                                                                _log.EventLog("Invoice Posted");
+                                                            }
+                                                            else
+                                                            {
+                                                                _log.EventLog("Invoice Not Posted");
+                                                                BodyLoopBreaks = true;
+                                                                break;
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            _log.EventLog("NOT dsInvoice.Tables[2].Rows.Count > 0");
+                                                            BodyLoopBreaks = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        refDocNo = "";
+                                                        _log.EventLog("Invoice Transaction date is behind the Accounting Date");
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    _log.EventLog("NOT dsInvoice.Tables[1].Rows.Count > 0");
+                                                    BodyLoopBreaks = true;
+                                                    break;
+                                                }
+                                            }
+                                            else
+                                            {
+                                                _log.EventLog("NOT dsInvoice.Tables.Count == 3");
+                                                BodyLoopBreaks = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        _log.EventLog("NOT dsInvoice.Tables[0].Rows.Count > 0");
+                                        BodyLoopBreaks = true;
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    _log.EventLog("NOT dsInvoice.Tables.Count > 0");
+                                    BodyLoopBreaks = true;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                _log.EventLog("dsInvoice is null \n" + error);
+                                BodyLoopBreaks = true;
+                                break;
+                            }
+                            if (refDocNo == "")
+                            {
+
+                            }
+                            else
+                            {
+                                DataTable dt = _db.GetIRef(refDocNo, CompanyId);
+                                string refid = "0";
+                                if (dt != null)
+                                {
+                                    _log.EventLog("BillRef Datatable count = " + dt.Rows.Count);
+                                    _log.EventLog("BillRef iref = " + dt.Rows[0]["RefId"]);
+                                    refid = dt.Rows[0]["RefId"].ToString();
+                                }
+                                else
+                                {
+                                    _log.EventLog("could not find reference.");
+                                }
+                                Hashtable billRef = new Hashtable();
+                                billRef.Add("CustomerId", AcId);
+                                billRef.Add("Amount", Convert.ToDecimal(item["Amount"].ToString().Trim()));
+                                billRef.Add("reftype", 2);
+                                billRef.Add("Reference", refDocNo.Trim());
+                                billRef.Add("ref", Convert.ToInt32(refid));
+                                listbillRef.Add(billRef);
+                            }
+                        }
+                        if (BodyLoopBreaks)
+                        {
+                            _log.EventLog("BodyLoopBreaks");
+                            continue;
+                        }
+                        Hashtable objBody = new Hashtable
+                                     {
+                                         { "DocNo", docno },
+                                         { "Amount", Convert.ToDecimal(TB["Amount"].ToString().Trim()) },
+                                         { "Reference", listbillRef },
+                                         { "Account__Id", AcId },
+                                         { "Route__Code", RouteCode },
+                                         { "Company Master__Id", 5 },
+                                         { "Group Customer Master__Name", Grp },
+                                     };
+                        lstBody.Add(objBody);
                         _log.EventLog("PDCReceipts_TB Body Data ready");
                         var postingData1 = new PostingData();
                         postingData1.data.Add(new Hashtable { { "Header", header }, { "Body", lstBody } });
@@ -2195,6 +3198,7 @@ namespace KwalityIntegrationLibrary
 
                         string Url1 = baseUrl + "/Transactions/Vouchers/Post-Dated Receipts";
                         _log.EventLog("PDCReceipts_TB post url" + Url1);
+                        sessionID = GetSessionId(CompanyId);
                         var response1 = Focus8API.Post(Url1, sContent1, sessionID, ref err1);
                         if (response1 != null)
                         {
@@ -2251,7 +3255,6 @@ namespace KwalityIntegrationLibrary
                 strValue = "";
             return strValue;
         }
-       
 
         public string GetSessionId(int CompId)
         {
@@ -2297,5 +3300,6 @@ namespace KwalityIntegrationLibrary
             }
             return sSessionId;
         }
+
     }
 }
